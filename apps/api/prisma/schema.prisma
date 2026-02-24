@@ -1,0 +1,314 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Core Entities
+// ============================================
+
+model Usuario {
+  id               String   @id @default(uuid())
+  email            String   @unique
+  nombre           String
+  moneda_principal String   @default("ARS")
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  // Relations
+  cuentas              Cuenta[]
+  tarjetas             Tarjeta[]
+  movimientos          Movimiento[]
+  compras_en_cuotas    CompraEnCuotas[]
+  deudas               Deuda[]
+  inversiones          Inversion[]
+  presupuestos         Presupuesto[]
+  configuraciones_moneda ConfiguracionMoneda[]
+
+  @@map("usuarios")
+}
+
+model Cuenta {
+  id            String   @id @default(uuid())
+  usuario_id    String
+  nombre        String
+  tipo          TipoCuenta
+  moneda        String
+  saldo_actual  Decimal  @default(0) @db.Decimal(15, 2)
+  activa        Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relations
+  usuario                Usuario       @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  movimientos            Movimiento[]  @relation("CuentaOrigen")
+  movimientos_destino    Movimiento[]  @relation("CuentaDestino")
+  tarjetas               Tarjeta[]
+  inversiones            Inversion[]
+
+  @@index([usuario_id])
+  @@map("cuentas")
+}
+
+model Tarjeta {
+  id                  String   @id @default(uuid())
+  usuario_id          String
+  cuenta_id           String   // Cuenta asociada para pagos
+  nombre              String
+  tipo                TipoTarjeta
+  limite_total        Decimal  @db.Decimal(15, 2)
+  limite_comprometido Decimal  @default(0) @db.Decimal(15, 2)
+  moneda              String
+  dia_cierre          Int      // 1-31
+  dia_vencimiento     Int      // 1-31
+  activa              Boolean  @default(true)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  // Relations
+  usuario           Usuario          @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  cuenta_asociada   Cuenta           @relation(fields: [cuenta_id], references: [id])
+  movimientos       Movimiento[]
+  compras_en_cuotas CompraEnCuotas[]
+
+  @@index([usuario_id])
+  @@map("tarjetas")
+}
+
+model Movimiento {
+  id                      String   @id @default(uuid())
+  usuario_id              String
+  tipo                    TipoMovimiento
+  cuenta_id               String
+  cuenta_destino_id       String?
+  tarjeta_id              String?
+  deuda_id                String?
+  monto                   Decimal  @db.Decimal(15, 2)
+  moneda                  String
+  descripcion             String
+  categoria               String?
+  fecha                   DateTime
+  tasa_conversion         Decimal? @db.Decimal(10, 4)
+  movimiento_relacionado_id String?
+  metadata                Json?
+  created_at              DateTime @default(now())
+
+  // Relations
+  usuario           Usuario     @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  cuenta_origen     Cuenta      @relation("CuentaOrigen", fields: [cuenta_id], references: [id])
+  cuenta_destino    Cuenta?     @relation("CuentaDestino", fields: [cuenta_destino_id], references: [id])
+  tarjeta           Tarjeta?    @relation(fields: [tarjeta_id], references: [id])
+  deuda             Deuda?      @relation(fields: [deuda_id], references: [id])
+  movimiento_relacionado Movimiento? @relation("MovimientoRelacionado", fields: [movimiento_relacionado_id], references: [id])
+  movimientos_relacionados Movimiento[] @relation("MovimientoRelacionado")
+  compras_en_cuotas CompraEnCuotas[]
+  pagos_deuda       PagoDeuda[]
+
+  @@index([usuario_id, fecha])
+  @@index([cuenta_id])
+  @@map("movimientos")
+}
+
+model CompraEnCuotas {
+  id              String   @id @default(uuid())
+  usuario_id      String
+  tarjeta_id      String
+  movimiento_id   String
+  descripcion     String
+  monto_total     Decimal  @db.Decimal(15, 2)
+  cantidad_cuotas Int
+  monto_por_cuota Decimal  @db.Decimal(15, 2)
+  cuotas_pagadas  Int      @default(0)
+  fecha_compra    DateTime
+  categoria       String?
+  created_at      DateTime @default(now())
+
+  // Relations
+  usuario     Usuario      @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  tarjeta     Tarjeta      @relation(fields: [tarjeta_id], references: [id])
+  movimiento  Movimiento   @relation(fields: [movimiento_id], references: [id])
+  cuotas      Cuota[]
+
+  @@index([usuario_id])
+  @@index([tarjeta_id])
+  @@map("compras_en_cuotas")
+}
+
+model Cuota {
+  id                String   @id @default(uuid())
+  compra_id         String
+  numero_cuota      Int
+  monto             Decimal  @db.Decimal(15, 2)
+  fecha_vencimiento DateTime
+  pagada            Boolean  @default(false)
+  fecha_pago        DateTime?
+  created_at        DateTime @default(now())
+
+  // Relations
+  compra CompraEnCuotas @relation(fields: [compra_id], references: [id], onDelete: Cascade)
+
+  @@index([fecha_vencimiento, pagada])
+  @@map("cuotas")
+}
+
+model Deuda {
+  id               String   @id @default(uuid())
+  usuario_id       String
+  tipo             TipoDeuda
+  acreedor         String
+  monto_total      Decimal  @db.Decimal(15, 2)
+  monto_pendiente  Decimal  @db.Decimal(15, 2)
+  moneda           String
+  fecha_inicio     DateTime
+  cantidad_cuotas  Int?
+  monto_cuota      Decimal? @db.Decimal(15, 2)
+  saldada          Boolean  @default(false)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  // Relations
+  usuario       Usuario      @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  movimientos   Movimiento[]
+  pagos         PagoDeuda[]
+
+  @@index([usuario_id])
+  @@map("deudas")
+}
+
+model PagoDeuda {
+  id            String   @id @default(uuid())
+  deuda_id      String
+  movimiento_id String
+  monto         Decimal  @db.Decimal(15, 2)
+  fecha         DateTime
+  created_at    DateTime @default(now())
+
+  // Relations
+  deuda      Deuda      @relation(fields: [deuda_id], references: [id], onDelete: Cascade)
+  movimiento Movimiento @relation(fields: [movimiento_id], references: [id])
+
+  @@index([deuda_id])
+  @@map("pagos_deuda")
+}
+
+model Inversion {
+  id                String   @id @default(uuid())
+  usuario_id        String
+  tipo              TipoInversion
+  descripcion       String
+  monto_invertido   Decimal  @db.Decimal(15, 2)
+  monto_recuperado  Decimal  @default(0) @db.Decimal(15, 2)
+  moneda            String
+  fecha_inicio      DateTime
+  cuenta_origen_id  String?
+  estado            EstadoInversion @default(ACTIVA)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  // Relations
+  usuario        Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  cuenta_origen  Cuenta? @relation(fields: [cuenta_origen_id], references: [id])
+
+  @@index([usuario_id])
+  @@map("inversiones")
+}
+
+model Presupuesto {
+  id           String   @id @default(uuid())
+  usuario_id   String
+  categoria    String
+  monto_limite Decimal  @db.Decimal(15, 2)
+  periodo      PeriodoPresupuesto
+  moneda       String
+  activo       Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  // Relations
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@index([usuario_id])
+  @@map("presupuestos")
+}
+
+model ConfiguracionMoneda {
+  id                  String   @id @default(uuid())
+  usuario_id          String
+  moneda              String
+  tasa_a_principal    Decimal  @db.Decimal(10, 4)
+  fecha_actualizacion DateTime @default(now())
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  // Relations
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@unique([usuario_id, moneda])
+  @@map("configuraciones_moneda")
+}
+
+// ============================================
+// Enums
+// ============================================
+
+enum TipoCuenta {
+  BANCO
+  BILLETERA
+  BROKER
+  EFECTIVO
+  FONDO_DESCUENTO
+}
+
+enum TipoTarjeta {
+  VISA
+  MASTERCARD
+  OTRA
+}
+
+enum TipoMovimiento {
+  INGRESO
+  GASTO
+  TRANSFERENCIA
+  PAGO_TARJETA
+  GASTO_TARJETA
+  PAGO_DEUDA
+  INVERSION
+  RETORNO_INVERSION
+  AJUSTE
+  INGRESO_INICIAL
+  GASTO_CON_DESCUENTO
+  SUBSIDIO
+}
+
+enum TipoDeuda {
+  PERSONAL
+  CREDITO_BILLETERA
+  PRESTAMO
+  OTRO
+}
+
+enum TipoInversion {
+  PLAZO_FIJO
+  BONOS
+  ACCIONES
+  CRYPTO
+  OTRO
+}
+
+enum EstadoInversion {
+  ACTIVA
+  PARCIALMENTE_RECUPERADA
+  FINALIZADA
+}
+
+enum PeriodoPresupuesto {
+  MENSUAL
+  ANUAL
+}
