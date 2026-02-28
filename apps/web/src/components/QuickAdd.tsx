@@ -1,21 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Gift, ArrowLeftRight } from 'lucide-react';
-
-// Temporary: replaced by Supabase Auth context once auth is wired up
-const USER_ID = import.meta.env.VITE_USER_ID ?? 'demo-user-id';
+import { useAccounts } from '@/hooks/useAccounts';
 
 const LAST_ACCOUNT_KEY = 'freya_last_account';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Account {
-  id: string;
-  nombre: string;
-  tipo: string;
-  moneda: string;
-  saldo_actual: string | number;
-  activa: boolean;
-}
 
 export interface QuickAddData {
   tipo: 'INGRESO' | 'GASTO' | 'TRANSFERENCIA';
@@ -73,7 +60,8 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
   const [tasaConversion, setTasaConversion] = useState('');
   const [categoria, setCategoria] = useState<string | undefined>();
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const { accounts: allAccounts } = useAccounts();
+  const accounts = allAccounts.filter((a) => a.activa);
   const [descuentoActivo, setDescuentoActivo] = useState(false);
   const [porcentajeDescuento, setPorcentajeDescuento] = useState(70);
   const [fondoDescuentoId, setFondoDescuentoId] = useState<string | undefined>();
@@ -86,38 +74,22 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
   const amountInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // ── Fetch active accounts on mount ───────────────────────────────────────
+  // ── Set default selections when accounts load ───────────────────────────
 
   useEffect(() => {
-    const fetchAccounts = async () => {
-      try {
-        const res = await fetch('/api/cuentas', {
-          headers: { 'x-user-id': USER_ID },
-        });
-        if (!res.ok) return;
-        const json = await res.json() as { data: Account[] };
-        const active = json.data.filter((a) => a.activa);
-        setAccounts(active);
+    if (accounts.length === 0) return;
 
-        // Pre-select payment account: restore last used (non-fund), or first non-fund
-        const paymentAccounts = active.filter((a) => a.tipo !== 'FONDO_DESCUENTO');
-        const saved = localStorage.getItem(LAST_ACCOUNT_KEY);
-        const validSaved = paymentAccounts.find((a) => a.id === saved);
-        const originId = validSaved?.id ?? paymentAccounts[0]?.id;
-        setSelectedAccountId(originId);
+    const paymentAccts = accounts.filter((a) => a.tipo !== 'FONDO_DESCUENTO');
+    const saved = localStorage.getItem(LAST_ACCOUNT_KEY);
+    const validSaved = paymentAccts.find((a) => a.id === saved);
+    const originId = validSaved?.id ?? paymentAccts[0]?.id;
 
-        // Pre-select second account as transfer destination (may be undefined)
-        setDestinoAccountId(paymentAccounts.find((a) => a.id !== originId)?.id);
+    setSelectedAccountId((prev) => prev ?? originId);
+    setDestinoAccountId((prev) => prev ?? paymentAccts.find((a) => a.id !== originId)?.id);
 
-        // Pre-select first discount fund
-        const funds = active.filter((a) => a.tipo === 'FONDO_DESCUENTO');
-        setFondoDescuentoId(funds[0]?.id);
-      } catch {
-        // silently ignore — account selector stays empty
-      }
-    };
-    fetchAccounts();
-  }, []);
+    const funds = accounts.filter((a) => a.tipo === 'FONDO_DESCUENTO');
+    setFondoDescuentoId((prev) => prev ?? funds[0]?.id);
+  }, [accounts]);
 
   // ── Toast auto-dismiss ────────────────────────────────────────────────────
 

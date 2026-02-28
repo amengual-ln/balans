@@ -1,18 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
+import { useSWRConfig } from 'swr';
 import MovementsList from '@/components/MovementsList';
 import QuickAdd, { type QuickAddData } from '@/components/QuickAdd';
-
-// Temporary: replaced by Supabase Auth context once auth is wired up
-const USER_ID = import.meta.env.VITE_USER_ID ?? 'demo-user-id';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface MonthlyStats {
-  ingresos: number;
-  gastos: number;
-  balance: number;
-}
+import { useStats, type MonthlyStats } from '@/hooks/useStats';
+import { useMovements } from '@/hooks/useMovements';
+import { apiPost } from '@/hooks/useAPI';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -69,7 +62,6 @@ function MonthlyBalanceCard({ stats, isLoading }: { stats: MonthlyStats | null; 
 
   return (
     <div className="mb-6 rounded-xl border border-border bg-white p-4 shadow-sm">
-      {/* Ingresos row */}
       <div className="flex items-center justify-between text-sm">
         <span className="flex items-center gap-1.5 text-text-secondary">
           <TrendingUp className="h-3.5 w-3.5 text-positive" />
@@ -80,7 +72,6 @@ function MonthlyBalanceCard({ stats, isLoading }: { stats: MonthlyStats | null; 
         </span>
       </div>
 
-      {/* Gastos row */}
       <div className="mt-2 flex items-center justify-between text-sm">
         <span className="flex items-center gap-1.5 text-text-secondary">
           <TrendingDown className="h-3.5 w-3.5 text-negative" />
@@ -91,7 +82,6 @@ function MonthlyBalanceCard({ stats, isLoading }: { stats: MonthlyStats | null; 
         </span>
       </div>
 
-      {/* Balance row */}
       <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
         <span className="text-sm font-medium text-text-primary">Balance</span>
         <span
@@ -111,42 +101,19 @@ function MonthlyBalanceCard({ stats, isLoading }: { stats: MonthlyStats | null; 
 export default function Movements() {
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() });
-  const [stats, setStats] = useState<MonthlyStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Stable Date objects — only recomputed when the period changes
   const { desde, hasta } = useMemo(
     () => getMonthRange(period.year, period.month),
     [period.year, period.month],
   );
 
-  // Convert to ISO strings once so children receive stable string props
   const desdeISO = desde.toISOString();
   const hastaISO = hasta.toISOString();
 
-  // ── Stats fetch (CU-018) ──────────────────────────────────────────────────
-
-  const fetchStats = useCallback(async () => {
-    setStatsLoading(true);
-    try {
-      const params = new URLSearchParams({ desde: desdeISO, hasta: hastaISO });
-      const res = await fetch(`/api/movements/stats?${params}`, {
-        headers: { 'x-user-id': USER_ID },
-      });
-      if (!res.ok) throw new Error('Error al cargar estadísticas');
-      const json = await res.json() as { data: MonthlyStats };
-      setStats(json.data);
-    } catch {
-      setStats(null);
-    } finally {
-      setStatsLoading(false);
-    }
-  }, [desdeISO, hastaISO]);
-
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+  // SWR hooks — cached, deduplicated, stale-while-revalidate
+  const { stats, isLoading: statsLoading, mutate: mutateStats } = useStats(desdeISO, hastaISO);
+  const { movements, isLoading: movementsLoading, mutate: mutateMovements } = useMovements(desdeISO, hastaISO);
+  const { mutate: globalMutate } = useSWRConfig();
 
   // ── Period navigation ────────────────────────────────────────────────────
 
@@ -169,53 +136,41 @@ export default function Movements() {
   // ── QuickAdd handler ─────────────────────────────────────────────────────
 
   const handleQuickAdd = async (data: QuickAddData) => {
-    let res: Response;
+    let endpoint: string;
+    let body: unknown;
 
     if (data.tipo === 'TRANSFERENCIA') {
-      res = await fetch('/api/movements/transfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': USER_ID },
-        body: JSON.stringify({
-          cuenta_origen_id: data.cuenta_id,
-          cuenta_destino_id: data.cuenta_destino_id,
-          monto: data.monto,
-          descripcion: data.descripcion,
-          fecha: data.fecha,
-          tasa_conversion: data.tasa_conversion,
-        }),
-      });
+      endpoint = '/api/movements/transfer';
+      body = {
+        cuenta_origen_id: data.cuenta_id,
+        cuenta_destino_id: data.cuenta_destino_id,
+        monto: data.monto,
+        descripcion: data.descripcion,
+        fecha: data.fecha,
+        tasa_conversion: data.tasa_conversion,
+      };
     } else if (data.descuento_activo && data.fondo_descuento_id) {
-      // Compound operation: split expense between payment account and discount fund
-      res = await fetch('/api/movements/expense-with-discount', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': USER_ID },
-        body: JSON.stringify({
-          monto_total: data.monto,
-          porcentaje_descuento: data.porcentaje_descuento,
-          cuenta_pago_id: data.cuenta_id,
-          fondo_descuento_id: data.fondo_descuento_id,
-          categoria: data.categoria,
-          descripcion: data.descripcion,
-          fecha: data.fecha,
-        }),
-      });
+      endpoint = '/api/movements/expense-with-discount';
+      body = {
+        monto_total: data.monto,
+        porcentaje_descuento: data.porcentaje_descuento,
+        cuenta_pago_id: data.cuenta_id,
+        fondo_descuento_id: data.fondo_descuento_id,
+        categoria: data.categoria,
+        descripcion: data.descripcion,
+        fecha: data.fecha,
+      };
     } else {
-      // Simple income or expense
-      res = await fetch('/api/movements/quick', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': USER_ID },
-        body: JSON.stringify(data),
-      });
+      endpoint = '/api/movements/quick';
+      body = data;
     }
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as { error?: string };
-      throw new Error(body.error ?? 'Error al guardar el movimiento');
-    }
+    await apiPost(endpoint, body);
 
-    // Refresh list + stats after a successful add
-    setRefreshKey((k) => k + 1);
-    fetchStats();
+    // Revalidate movements, stats, and accounts (balance changed)
+    mutateMovements();
+    mutateStats();
+    globalMutate('/api/cuentas');
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -224,7 +179,6 @@ export default function Movements() {
     <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-2xl px-4 pb-24 pt-6">
 
-        {/* Page heading */}
         <h1 className="mb-6 text-2xl font-bold text-text-primary">Movimientos</h1>
 
         {/* ── Period navigator ── */}
@@ -261,9 +215,8 @@ export default function Movements() {
 
         {/* ── Movements list with filters ── */}
         <MovementsList
-          desdeISO={desdeISO}
-          hastaISO={hastaISO}
-          refreshKey={refreshKey}
+          movements={movements}
+          isLoading={movementsLoading}
         />
       </div>
 

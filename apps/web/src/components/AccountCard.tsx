@@ -7,7 +7,7 @@ export type TipoCuenta = 'BANCO' | 'BILLETERA' | 'BROKER' | 'EFECTIVO' | 'FONDO_
 export interface Account {
   id: string;
   nombre: string;
-  tipo: TipoCuenta;
+  tipo: string;
   moneda: string;
   saldo_actual: string | number;
   activa: boolean;
@@ -42,7 +42,8 @@ export default function AccountCard({ account, onClick }: AccountCardProps) {
   const { nombre, tipo, moneda, saldo_actual, activa } = account;
   const balance = typeof saldo_actual === 'string' ? parseFloat(saldo_actual) : saldo_actual;
   const isNegative = balance < 0;
-  const { label, Icon } = TYPE_CONFIG[tipo];
+  const config = TYPE_CONFIG[tipo as TipoCuenta];
+  const { label, Icon } = config ?? { label: tipo, Icon: Wallet };
 
   return (
     <button

@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import AccountCard, { type Account } from '@/components/AccountCard';
 import AccountForm, { type AccountFormPayload } from '@/components/AccountForm';
-
-// Temporary: replaced by Supabase Auth context once auth is wired up
-const USER_ID = import.meta.env.VITE_USER_ID ?? 'demo-user-id';
+import { useAccounts } from '@/hooks/useAccounts';
+import { apiPost } from '@/hooks/useAPI';
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -43,12 +42,7 @@ function SkeletonCard() {
 
 // ─── Total balance banner ─────────────────────────────────────────────────────
 
-interface TotalsProps {
-  accounts: Account[];
-}
-
-function TotalsBanner({ accounts }: TotalsProps) {
-  // Group by currency, sum activa accounts only
+function TotalsBanner({ accounts }: { accounts: Account[] }) {
   const totals: Record<string, number> = {};
   for (const acc of accounts) {
     if (!acc.activa) continue;
@@ -90,59 +84,22 @@ function TotalsBanner({ accounts }: TotalsProps) {
 
 export default function Accounts() {
   const navigate = useNavigate();
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { accounts, isLoading: loading, mutate } = useAccounts();
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-
-  // ── Fetch accounts ──────────────────────────────────────────────────────
-
-  const fetchAccounts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/cuentas', {
-        headers: { 'x-user-id': USER_ID },
-      });
-      if (!res.ok) throw new Error('Error al cargar cuentas');
-      const json = await res.json() as { data: Account[] };
-      setAccounts(json.data ?? []);
-    } catch {
-      setAccounts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
 
   // ── Create account (CU-001) ─────────────────────────────────────────────
 
   const handleCreate = async (payload: AccountFormPayload) => {
     setSubmitting(true);
     try {
-      const res = await fetch('/api/cuentas', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': USER_ID,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const json = await res.json() as { success: boolean; error?: string };
-
-      if (!res.ok || !json.success) {
-        throw new Error(json.error ?? 'Error al crear la cuenta');
-      }
-
+      await apiPost('/api/cuentas', payload);
       setShowForm(false);
       setToast('Cuenta creada exitosamente');
-      await fetchAccounts();
+      mutate();
     } catch (err) {
-      throw err; // Let AccountForm handle error display if needed
+      throw err;
     } finally {
       setSubmitting(false);
     }
@@ -163,7 +120,6 @@ export default function Accounts() {
     <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-2xl px-4 pb-24 pt-6">
 
-        {/* Page heading */}
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-text-primary">Cuentas</h1>
           <button
@@ -175,10 +131,8 @@ export default function Accounts() {
           </button>
         </div>
 
-        {/* Totals banner */}
         {!loading && accounts.length > 0 && <TotalsBanner accounts={accounts} />}
 
-        {/* Accounts grid */}
         {loading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
             {[0, 1, 2, 3].map((i) => <SkeletonCard key={i} />)}
@@ -200,7 +154,6 @@ export default function Accounts() {
           </div>
         ) : (
           <>
-            {/* Active accounts */}
             <div className="grid grid-cols-2 gap-3">
               {activeAccounts.map((account) => (
                 <AccountCard
@@ -211,7 +164,6 @@ export default function Accounts() {
               ))}
             </div>
 
-            {/* Inactive accounts */}
             {inactiveAccounts.length > 0 && (
               <div className="mt-6">
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-text-secondary">
@@ -232,7 +184,6 @@ export default function Accounts() {
         )}
       </div>
 
-      {/* Account form modal */}
       {showForm && (
         <AccountForm
           onSubmit={handleCreate}
@@ -241,7 +192,6 @@ export default function Accounts() {
         />
       )}
 
-      {/* Success toast */}
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
     </div>
   );

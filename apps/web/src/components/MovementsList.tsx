@@ -1,46 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { ChevronDown, X, Gift } from 'lucide-react';
-
-// Temporary: replaced by Supabase Auth context once auth is wired up
-const USER_ID = import.meta.env.VITE_USER_ID ?? 'demo-user-id';
+import type { Movement } from '@/hooks/useMovements';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type TipoMovimiento =
-  | 'INGRESO'
-  | 'GASTO'
-  | 'TRANSFERENCIA'
-  | 'PAGO_TARJETA'
-  | 'GASTO_TARJETA'
-  | 'PAGO_DEUDA'
-  | 'INVERSION'
-  | 'RETORNO_INVERSION'
-  | 'AJUSTE'
-  | 'INGRESO_INICIAL'
-  | 'GASTO_CON_DESCUENTO'
-  | 'SUBSIDIO';
-
-interface CuentaRef {
-  id: string;
-  nombre: string;
-  tipo: string;
-  moneda: string;
-}
-
-interface Movement {
-  id: string;
-  tipo: TipoMovimiento;
-  monto: string;
-  moneda: string;
-  descripcion: string;
-  categoria?: string | null;
-  fecha: string;
-  cuenta_origen?: CuentaRef | null;
-  cuenta_destino?: CuentaRef | null;
-  movimiento_relacionado_id?: string | null;
-  metadata?: { monto_total?: number; porcentaje_descuento?: number } | null;
-}
-
+type TipoMovimiento = Movement['tipo'];
 type FilterGroup = '' | 'income' | 'expense' | 'transfer';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -107,7 +71,6 @@ function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Mo
 
   const isTransfer = movement.tipo === 'TRANSFERENCIA';
 
-  // For transfers: primary label is "[from] → [to]"; no secondary meta needed
   const transferLabel = isTransfer
     ? [movement.cuenta_origen?.nombre, movement.cuenta_destino?.nombre]
         .filter(Boolean)
@@ -123,9 +86,7 @@ function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Mo
 
   return (
     <div>
-      {/* Main row */}
       <div className="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-surface">
-        {/* Description + metadata */}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-text-primary">{primaryLabel}</p>
           {meta && (
@@ -133,7 +94,6 @@ function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Mo
           )}
         </div>
 
-        {/* Amount */}
         <div className="shrink-0 text-right">
           <p className={`text-sm font-semibold tabular-nums ${amountClass}`}>
             {prefix}${formatAmount(movement.monto)}
@@ -144,7 +104,6 @@ function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Mo
         </div>
       </div>
 
-      {/* Subsidio sub-row */}
       {subsidio && (
         <>
           <div className="mx-4 border-t border-dashed border-blue-100" />
@@ -211,53 +170,14 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface MovementsListProps {
-  /** ISO date string for the start of the period */
-  desdeISO: string;
-  /** ISO date string for the end of the period */
-  hastaISO: string;
-  /** Increment to trigger a data refresh */
-  refreshKey: number;
+  movements: Movement[];
+  isLoading: boolean;
 }
 
-export default function MovementsList({ desdeISO, hastaISO, refreshKey }: MovementsListProps) {
-  const [movements, setMovements] = useState<Movement[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
+export default function MovementsList({ movements, isLoading }: MovementsListProps) {
   // Filters (client-side — full period is fetched once, filters are instant)
   const [filterGroup, setFilterGroup] = useState<FilterGroup>('');
   const [filterCategoria, setFilterCategoria] = useState('');
-
-  const fetchMovements = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        desde: desdeISO,
-        hasta: hastaISO,
-        limit: '500',
-        offset: '0',
-      });
-      const res = await fetch(`/api/movements?${params}`, {
-        headers: { 'x-user-id': USER_ID },
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? 'Error al cargar movimientos');
-      }
-      const json = await res.json() as { data?: Movement[] };
-      setMovements(json.data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-      setMovements([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [desdeISO, hastaISO, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    fetchMovements();
-  }, [fetchMovements]);
 
   // Build subsidioMap: keyed by GASTO_CON_DESCUENTO id → SUBSIDIO movement
   const subsidioMap = new Map<string, Movement>();
@@ -287,7 +207,6 @@ export default function MovementsList({ desdeISO, hastaISO, refreshKey }: Moveme
     <div>
       {/* ── Filter bar ── */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {/* Type group */}
         <div className="relative">
           <select
             value={filterGroup}
@@ -302,7 +221,6 @@ export default function MovementsList({ desdeISO, hastaISO, refreshKey }: Moveme
           <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-secondary" />
         </div>
 
-        {/* Category text filter */}
         <input
           type="text"
           value={filterCategoria}
@@ -311,7 +229,6 @@ export default function MovementsList({ desdeISO, hastaISO, refreshKey }: Moveme
           className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
         />
 
-        {/* Clear filters */}
         {hasFilters && (
           <button
             onClick={() => { setFilterGroup(''); setFilterCategoria(''); }}
@@ -326,8 +243,6 @@ export default function MovementsList({ desdeISO, hastaISO, refreshKey }: Moveme
       {/* ── Content ── */}
       {isLoading ? (
         <SkeletonList />
-      ) : error ? (
-        <div className="py-12 text-center text-sm text-negative">{error}</div>
       ) : grouped.length === 0 ? (
         <EmptyState hasFilters={hasFilters} />
       ) : (
@@ -349,7 +264,6 @@ export default function MovementsList({ desdeISO, hastaISO, refreshKey }: Moveme
             </section>
           ))}
 
-          {/* Summary footer */}
           <p className="pb-6 text-center text-xs text-text-secondary">
             {filtered.length} movimiento{filtered.length !== 1 ? 's' : ''}
             {hasFilters && movements.filter((m) => m.tipo !== 'SUBSIDIO').length !== filtered.length

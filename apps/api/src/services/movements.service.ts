@@ -550,11 +550,22 @@ export class MovementsService {
       where.categoria = query.categoria;
     }
 
-    // Get movements with related data
+    // Get movements with only the fields the frontend needs
     const [movimientos, total] = await Promise.all([
       prisma.movimiento.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          tipo: true,
+          monto: true,
+          moneda: true,
+          descripcion: true,
+          categoria: true,
+          fecha: true,
+          cuenta_id: true,
+          cuenta_destino_id: true,
+          movimiento_relacionado_id: true,
+          metadata: true,
           cuenta_origen: {
             select: {
               id: true,
@@ -569,18 +580,6 @@ export class MovementsService {
               nombre: true,
               tipo: true,
               moneda: true,
-            },
-          },
-          tarjeta: {
-            select: {
-              id: true,
-              nombre: true,
-            },
-          },
-          deuda: {
-            select: {
-              id: true,
-              acreedor: true,
             },
           },
         },
@@ -817,53 +816,42 @@ export class MovementsService {
       }
     }
 
-    const [ingresos, gastos, movimientosPorCategoria, movimientosPorTipo] =
-      await Promise.all([
-        // Total income
-        prisma.movimiento.aggregate({
-          where: {
-            ...where,
-            tipo: { in: ['INGRESO', 'RETORNO_INVERSION'] },
-          },
-          _sum: { monto: true },
-        }),
-        // Total expenses
-        prisma.movimiento.aggregate({
-          where: {
-            ...where,
-            tipo: { in: ['GASTO', 'PAGO_TARJETA', 'PAGO_DEUDA', 'GASTO_CON_DESCUENTO'] },
-          },
-          _sum: { monto: true },
-        }),
-        // By category
-        prisma.movimiento.groupBy({
-          by: ['categoria'],
-          where: {
-            ...where,
-            categoria: { not: null },
-          },
-          _sum: { monto: true },
-          _count: true,
-        }),
-        // By type
-        prisma.movimiento.groupBy({
-          by: ['tipo'],
-          where,
-          _sum: { monto: true },
-          _count: true,
-        }),
-      ]);
+    // Two groupBy queries instead of four separate aggregates
+    const [byTipo, byCategoria] = await Promise.all([
+      prisma.movimiento.groupBy({
+        by: ['tipo'],
+        where,
+        _sum: { monto: true },
+        _count: true,
+      }),
+      prisma.movimiento.groupBy({
+        by: ['categoria'],
+        where: {
+          ...where,
+          categoria: { not: null },
+        },
+        _sum: { monto: true },
+        _count: true,
+      }),
+    ]);
 
-    const totalIngresos = Number(ingresos._sum.monto || 0);
-    const totalGastos = Number(gastos._sum.monto || 0);
-    const balance = totalIngresos - totalGastos;
+    const INCOME_TYPES = new Set(['INGRESO', 'RETORNO_INVERSION']);
+    const EXPENSE_TYPES = new Set(['GASTO', 'PAGO_TARJETA', 'PAGO_DEUDA', 'GASTO_CON_DESCUENTO']);
+
+    let totalIngresos = 0;
+    let totalGastos = 0;
+    for (const row of byTipo) {
+      const monto = Number(row._sum.monto || 0);
+      if (INCOME_TYPES.has(row.tipo)) totalIngresos += monto;
+      if (EXPENSE_TYPES.has(row.tipo)) totalGastos += monto;
+    }
 
     return {
       ingresos: totalIngresos,
       gastos: totalGastos,
-      balance,
-      por_categoria: movimientosPorCategoria,
-      por_tipo: movimientosPorTipo,
+      balance: totalIngresos - totalGastos,
+      por_categoria: byCategoria,
+      por_tipo: byTipo,
     };
   }
 }

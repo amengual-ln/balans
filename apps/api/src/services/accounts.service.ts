@@ -1,5 +1,4 @@
 import { prisma } from '../lib/prisma';
-import { Decimal } from '@prisma/client/runtime/library';
 import type { CreateAccountInput, UpdateAccountInput, AdjustBalanceInput } from '../schemas/accounts.schema';
 
 export class AccountsService {
@@ -17,130 +16,41 @@ export class AccountsService {
    *   + SUM(ajustes)
    */
   private async calculateAccountBalance(cuentaId: string): Promise<number> {
-    const cuenta = await prisma.cuenta.findUnique({
-      where: { id: cuentaId },
-      select: { saldo_actual: true },
+    // Single groupBy for outgoing movements (cuenta_id)
+    const outgoing = await prisma.movimiento.groupBy({
+      by: ['tipo'],
+      where: { cuenta_id: cuentaId },
+      _sum: { monto: true },
     });
 
-    if (!cuenta) {
-      throw new Error('Cuenta no encontrada');
-    }
-
-    // Get initial balance (from INGRESO_INICIAL movements)
-    const saldoInicial = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'INGRESO_INICIAL',
-      },
-      _sum: {
-        monto: true,
-      },
+    // Single groupBy for incoming transfers (cuenta_destino_id)
+    const incoming = await prisma.movimiento.groupBy({
+      by: ['tipo'],
+      where: { cuenta_destino_id: cuentaId },
+      _sum: { monto: true },
     });
 
-    // Positive movements (increase balance)
-    const ingresos = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'INGRESO',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
+    const outMap = new Map(outgoing.map((r) => [r.tipo, Number(r._sum.monto || 0)]));
+    const inMap = new Map(incoming.map((r) => [r.tipo, Number(r._sum.monto || 0)]));
 
-    const retornos = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'RETORNO_INVERSION',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
+    const get = (map: Map<string, number>, tipo: string) => map.get(tipo) ?? 0;
 
-    const transferenciasEntrada = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_destino_id: cuentaId,
-        tipo: 'TRANSFERENCIA',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
-
-    const ajustes = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'AJUSTE',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
-
-    // Negative movements (decrease balance)
-    const gastos = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'GASTO',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
-
-    const pagosTarjeta = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'PAGO_TARJETA',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
-
-    const pagosDeuda = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'PAGO_DEUDA',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
-
-    const inversiones = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'INVERSION',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
-
-    const transferenciasSalida = await prisma.movimiento.aggregate({
-      where: {
-        cuenta_id: cuentaId,
-        tipo: 'TRANSFERENCIA',
-      },
-      _sum: {
-        monto: true,
-      },
-    });
-
-    // Calculate total balance
+    // Positive: initial + income + returns + transfer-in + adjustments
+    // Negative: expenses + card payments + debt payments + investments + transfer-out + discount expenses + subsidies
     const total =
-      Number(saldoInicial._sum.monto || 0) +
-      Number(ingresos._sum.monto || 0) +
-      Number(retornos._sum.monto || 0) +
-      Number(transferenciasEntrada._sum.monto || 0) +
-      Number(ajustes._sum.monto || 0) -
-      Number(gastos._sum.monto || 0) -
-      Number(pagosTarjeta._sum.monto || 0) -
-      Number(pagosDeuda._sum.monto || 0) -
-      Number(inversiones._sum.monto || 0) -
-      Number(transferenciasSalida._sum.monto || 0);
+      get(outMap, 'INGRESO_INICIAL') +
+      get(outMap, 'INGRESO') +
+      get(outMap, 'RETORNO_INVERSION') +
+      get(inMap, 'TRANSFERENCIA') +
+      get(outMap, 'AJUSTE') -
+      get(outMap, 'GASTO') -
+      get(outMap, 'PAGO_TARJETA') -
+      get(outMap, 'GASTO_TARJETA') -
+      get(outMap, 'PAGO_DEUDA') -
+      get(outMap, 'INVERSION') -
+      get(outMap, 'TRANSFERENCIA') -
+      get(outMap, 'GASTO_CON_DESCUENTO') -
+      get(outMap, 'SUBSIDIO');
 
     return total;
   }

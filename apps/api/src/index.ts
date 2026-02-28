@@ -15,9 +15,10 @@ app.use(express.urlencoded({ extended: true }))
 
 // Temporary auth: auto-upsert user row so FK constraints don't fail.
 // When Supabase Auth is wired, this middleware is replaced by JWT verification.
+const knownUserIds = new Set<string>()
 app.use(async (req, _res, next) => {
   const userId = req.headers['x-user-id'] as string | undefined
-  if (userId) {
+  if (userId && !knownUserIds.has(userId)) {
     await prisma.usuario.upsert({
       where: { id: userId },
       update: {},
@@ -27,6 +28,7 @@ app.use(async (req, _res, next) => {
         nombre: 'Usuario demo',
       },
     }).catch(() => { /* ignore race conditions */ })
+    knownUserIds.add(userId)
   }
   next()
 })
