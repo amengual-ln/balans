@@ -87,6 +87,7 @@ npm run test:e2e     # Run end-to-end tests
 - `CompraEnCuotas`: Installment purchases on credit cards
 - `Cuota`: Individual installments with payment tracking
 - `Deuda`: Debts with payment tracking
+- `Suscripcion`: Recurring services (rent, phone, internet, subscriptions)
 - `Inversion`: Investments tracking
 - `Presupuesto`: Budget categories (informative, non-blocking)
 - `ConfiguracionMoneda`: Currency exchange rate configuration
@@ -98,10 +99,40 @@ npm run test:e2e     # Run end-to-end tests
 - `PAGO_TARJETA`: Credit card payment (counts as expense)
 - `GASTO_TARJETA`: Credit card purchase
 - `PAGO_DEUDA`: Debt payment (counts as expense)
+- `SUSCRIPCION`: Recurring service payment (counts as expense)
 - `INVERSION`: Investment
 - `RETORNO_INVERSION`: Investment return
 - `AJUSTE`: Balance adjustment
 - `INGRESO_INICIAL`: Initial balance
+
+### Suscripcion (Subscriptions) Data Model
+
+**Fields:**
+- `id`: UUID
+- `usuario_id`: UUID (foreign key)
+- `nombre`: Service name (e.g., "Rent", "Netflix", "Phone Plan")
+- `descripcion`: Optional description
+- `monto`: Payment amount (decimal)
+- `moneda`: Currency code
+- `cuenta_id`: Account to charge (foreign key)
+- `frecuencia`: Payment frequency (SEMANAL/QUINCENAL/MENSUAL/TRIMESTRAL/ANUAL)
+- `dia_pago`: Day of period to charge (1-31; for SEMANAL, 1=Monday...7=Sunday)
+- `proxima_fecha_pago`: Next scheduled payment date
+- `fecha_inicio`: Start date
+- `fecha_fin`: Optional end date (null = ongoing)
+- `activo`: Boolean (false = paused, no payments generated)
+- `categoria`: Budget category for forecasting
+- `created_at`: Timestamp
+- `updated_at`: Timestamp
+
+**Behavior:**
+- Upon creation, calculate `proxima_fecha_pago` based on frequency and `dia_pago`
+- User manually marks payments as paid via `/pagar` endpoint (no automatic charging)
+- When payment is recorded, a SUSCRIPCION movement is created and `proxima_fecha_pago` advances by frequency period
+- If subscription is paused (`activo = false`), it doesn't appear in dashboard "due soon" list
+- If `fecha_fin` is reached, subscription stops appearing in upcoming payments
+- Dashboard shows next 3 upcoming subscription payments for active subscriptions
+- Budget forecasting includes active subscriptions in monthly projections
 
 ### Critical Business Rules
 
@@ -147,6 +178,15 @@ When paying a credit card:
 3. Mark installments as paid (oldest to newest)
 4. Reduce limite_comprometido for fully paid purchases
 5. Each installment paid releases its portion of the limit
+
+**RN-006: Recurring Service Payments**
+Subscriptions track recurring services (rent, phone plans, internet, etc.):
+1. Service defined with amount, frequency (weekly/biweekly/monthly/quarterly/annual), and due date
+2. System calculates and displays next payment due dates (no automatic charging)
+3. User manually triggers payment via `/pagar` endpoint to record SUSCRIPCION movement
+4. When paid, next payment date is automatically calculated based on frequency
+5. Inactive subscriptions don't appear in "due soon" dashboard section
+6. System respects end dates; subscriptions stop appearing after fecha_fin
 
 ### Key Architectural Patterns
 
@@ -284,6 +324,15 @@ The most important UX feature - target: <5 seconds to log an expense
 - `PUT /api/presupuestos/:id`
 - `DELETE /api/presupuestos/:id`
 - `GET /api/presupuestos/estado?periodo=YYYY-MM`
+
+### Subscriptions
+- `GET /api/suscripciones` - List all subscriptions with next payment due
+- `POST /api/suscripciones` - Create new subscription
+- `GET /api/suscripciones/:id`
+- `PUT /api/suscripciones/:id` - Update subscription (pause, change amount, etc.)
+- `DELETE /api/suscripciones/:id` - Remove subscription
+- `POST /api/suscripciones/:id/pagar` - Mark subscription as paid (manual payment recording)
+- `GET /api/suscripciones/proximos?dias=30` - Get subscriptions due within N days
 
 ### Balance & Reports
 - `GET /api/balance/mensual?periodo=YYYY-MM`
