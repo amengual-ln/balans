@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import AccountCard, { type Account } from '@/components/AccountCard';
 import AccountForm, { type AccountFormPayload } from '@/components/AccountForm';
+import RecargarFondoModal from '@/components/RecargarFondoModal';
 import { useAccounts } from '@/hooks/useAccounts';
 import { apiPost } from '@/hooks/useAPI';
 
@@ -88,6 +89,7 @@ export default function Accounts() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [recargarAccount, setRecargarAccount] = useState<Account | null>(null);
 
   // ── Create account (CU-001) ─────────────────────────────────────────────
 
@@ -160,6 +162,7 @@ export default function Accounts() {
                   key={account.id}
                   account={account}
                   onClick={handleCardClick}
+                  onRecargar={account.tipo === 'FONDO_DESCUENTO' ? setRecargarAccount : undefined}
                 />
               ))}
             </div>
@@ -189,6 +192,17 @@ export default function Accounts() {
           onSubmit={handleCreate}
           onClose={() => setShowForm(false)}
           isSubmitting={submitting}
+        />
+      )}
+
+      {recargarAccount && (
+        <RecargarFondoModal
+          account={recargarAccount}
+          onClose={() => setRecargarAccount(null)}
+          onSuccess={() => {
+            setToast('Fondo recargado exitosamente');
+            mutate();
+          }}
         />
       )}
 

@@ -139,7 +139,17 @@ export default function Movements() {
     let endpoint: string;
     let body: unknown;
 
-    if (data.tipo === 'TRANSFERENCIA') {
+    if (data.tipo === 'TARJETA') {
+      endpoint = '/api/movements/compra-tarjeta';
+      body = {
+        tarjeta_id: data.tarjeta_id,
+        monto: data.monto,
+        cantidad_cuotas: data.cantidad_cuotas ?? 1,
+        descripcion: data.descripcion || 'Compra con tarjeta',
+        categoria: data.categoria,
+        fecha: data.fecha,
+      };
+    } else if (data.tipo === 'TRANSFERENCIA') {
       endpoint = '/api/movements/transfer';
       body = {
         cuenta_origen_id: data.cuenta_id,
@@ -171,6 +181,9 @@ export default function Movements() {
     mutateMovements();
     mutateStats();
     globalMutate('/api/cuentas');
+    if (data.tipo === 'TARJETA') {
+      globalMutate('/api/tarjetas');
+    }
   };
 
   // ── Render ───────────────────────────────────────────────────────────────

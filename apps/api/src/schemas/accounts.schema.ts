@@ -23,6 +23,11 @@ export const createAccountSchema = z.object({
     .optional()
     .default(0),
   activa: z.boolean().optional().default(true),
+  recarga_mensual: z
+    .number()
+    .or(z.string().transform((val) => parseFloat(val)))
+    .pipe(z.number().nonnegative('La recarga mensual debe ser mayor o igual a 0'))
+    .optional(),
 });
 
 export const updateAccountSchema = z.object({
@@ -33,6 +38,11 @@ export const updateAccountSchema = z.object({
     .trim()
     .optional(),
   activa: z.boolean().optional(),
+  recarga_mensual: z
+    .number()
+    .or(z.string().transform((val) => parseFloat(val)))
+    .pipe(z.number().nonnegative('La recarga mensual debe ser mayor o igual a 0'))
+    .optional(),
   // Note: moneda cannot be changed if account has movements (validated in service)
 });
 
@@ -56,8 +66,17 @@ export const getAccountsQuerySchema = z.object({
   tipo: TipoCuentaSchema.optional(),
 });
 
+export const recargarFondoSchema = z.object({
+  monto: z
+    .number()
+    .or(z.string().transform((val) => parseFloat(val)))
+    .pipe(z.number().positive('El monto debe ser mayor a 0'))
+    .optional(),
+});
+
 // Type exports for use in controllers/services
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type AdjustBalanceInput = z.infer<typeof adjustBalanceSchema>;
 export type GetAccountsQuery = z.infer<typeof getAccountsQuerySchema>;
+export type RecargarFondoInput = z.infer<typeof recargarFondoSchema>;

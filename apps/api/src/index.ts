@@ -41,6 +41,8 @@ app.get('/health', (_req, res) => {
 // Import routes
 import accountsRouter from './routes/accounts'
 import movementsRouter from './routes/movements'
+import cardsRouter from './routes/cards'
+import debtsRouter from './routes/debts'
 
 // Routes
 app.get('/api', (_req, res) => {
@@ -54,6 +56,8 @@ app.get('/api', (_req, res) => {
 // API Routes
 app.use('/api/cuentas', accountsRouter)
 app.use('/api/movements', movementsRouter)
+app.use('/api/tarjetas', cardsRouter)
+app.use('/api/deudas', debtsRouter)
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

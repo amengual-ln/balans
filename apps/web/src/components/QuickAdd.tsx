@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Gift, ArrowLeftRight } from 'lucide-react';
 import { useAccounts } from '@/hooks/useAccounts';
+import { useCards } from '@/hooks/useCards';
+import { mutate as globalMutate } from 'swr';
 
 const LAST_ACCOUNT_KEY = 'freya_last_account';
 
 export interface QuickAddData {
-  tipo: 'INGRESO' | 'GASTO' | 'TRANSFERENCIA';
+  tipo: 'INGRESO' | 'GASTO' | 'TRANSFERENCIA' | 'TARJETA';
   monto: number;
   categoria?: string;
   cuenta_id?: string;
@@ -17,6 +19,9 @@ export interface QuickAddData {
   descuento_activo?: boolean;
   porcentaje_descuento?: number;
   fondo_descuento_id?: string;
+  // Card purchase fields
+  tarjeta_id?: string;
+  cantidad_cuotas?: number;
 }
 
 interface QuickAddProps {
@@ -62,6 +67,9 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
   const { accounts: allAccounts } = useAccounts();
   const accounts = allAccounts.filter((a) => a.activa);
+  const { cards: allCards } = useCards();
+  const activeCards = allCards.filter((c) => c.activa);
+  const [cantidadCuotas, setCantidadCuotas] = useState(1);
   const [descuentoActivo, setDescuentoActivo] = useState(false);
   const [porcentajeDescuento, setPorcentajeDescuento] = useState(70);
   const [fondoDescuentoId, setFondoDescuentoId] = useState<string | undefined>();
@@ -151,39 +159,53 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
       setDescuentoActivo(false);
       setPorcentajeDescuento(70);
       setTasaConversion('');
+      setCantidadCuotas(1);
     }, 200);
   };
 
   const handleSubmit = async () => {
     if (!monto || parseFloat(monto) <= 0) return;
 
+    const isCard = selectedAccountId?.startsWith('card:') ?? false;
+    const cardId = isCard ? selectedAccountId!.slice(5) : undefined;
+
     setIsSubmitting(true);
     try {
       const data: QuickAddData = {
-        tipo,
+        tipo: isCard ? 'TARJETA' : tipo,
         monto: parseFloat(monto),
         categoria: tipo !== 'TRANSFERENCIA' ? categoria : undefined,
-        cuenta_id: selectedAccountId,
+        cuenta_id: !isCard && tipo !== 'TRANSFERENCIA' ? selectedAccountId
+          : tipo === 'TRANSFERENCIA' ? selectedAccountId
+          : undefined,
         cuenta_destino_id: tipo === 'TRANSFERENCIA' ? destinoAccountId : undefined,
         tasa_conversion:
           tipo === 'TRANSFERENCIA' && tasaConversion ? parseFloat(tasaConversion) : undefined,
         descripcion: descripcion.trim() || undefined,
         fecha: fechaActiva && fecha ? new Date(fecha + 'T12:00:00').toISOString() : undefined,
-        descuento_activo: descuentoActivo && tipo === 'GASTO',
-        porcentaje_descuento: descuentoActivo ? porcentajeDescuento : undefined,
-        fondo_descuento_id: descuentoActivo ? fondoDescuentoId : undefined,
+        descuento_activo: !isCard && descuentoActivo && tipo === 'GASTO',
+        porcentaje_descuento: !isCard && descuentoActivo ? porcentajeDescuento : undefined,
+        fondo_descuento_id: !isCard && descuentoActivo ? fondoDescuentoId : undefined,
+        tarjeta_id: isCard ? cardId : undefined,
+        cantidad_cuotas: isCard ? cantidadCuotas : undefined,
       };
 
       await onSubmit?.(data);
 
-      // Persist last used account
-      if (selectedAccountId) {
+      // Persist last used account (not card)
+      if (selectedAccountId && !isCard) {
         localStorage.setItem(LAST_ACCOUNT_KEY, selectedAccountId);
+      }
+
+      // Refresh card limits after card purchase
+      if (isCard) {
+        globalMutate('/api/tarjetas');
       }
 
       closeModal();
       const toastMsg =
         tipo === 'INGRESO' ? 'Ingreso guardado'
+        : isCard ? 'Compra en tarjeta guardada'
         : tipo === 'GASTO' ? 'Gasto guardado'
         : 'Transferencia guardada';
       setToast({ message: toastMsg, type: 'success' });
@@ -212,7 +234,12 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
   const paymentAccounts = accounts.filter((a) => a.tipo !== 'FONDO_DESCUENTO');
   const discountFunds = accounts.filter((a) => a.tipo === 'FONDO_DESCUENTO');
 
-  const selectedAccount = paymentAccounts.find((a) => a.id === selectedAccountId);
+  // Derive card selection
+  const isCardSelected = tipo === 'GASTO' && (selectedAccountId?.startsWith('card:') ?? false);
+  const selectedCardId = isCardSelected ? selectedAccountId!.slice(5) : undefined;
+  const selectedCard = activeCards.find((c) => c.id === selectedCardId);
+
+  const selectedAccount = !isCardSelected ? paymentAccounts.find((a) => a.id === selectedAccountId) : undefined;
   const selectedFund = discountFunds.find((a) => a.id === fondoDescuentoId);
 
   // Transfer: accounts available as destination (excludes origin)
@@ -229,6 +256,8 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
   const montoSubsidio = parseFloat((montoNumerico * (porcentajeDescuento / 100)).toFixed(2));
   const montoPagado = parseFloat((montoNumerico - montoSubsidio).toFixed(2));
 
+  const showAccountSelector = paymentAccounts.length > 0 || (tipo === 'GASTO' && activeCards.length > 0);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -236,7 +265,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
       {/* FAB */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-all hover:bg-blue-600 hover:scale-110 active:scale-95 md:h-16 md:w-16"
+        className="fixed bottom-20 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-all hover:bg-blue-600 hover:scale-110 active:scale-95 md:h-16 md:w-16"
         aria-label="Quick add movement"
       >
         <Plus className="h-6 w-6 md:h-7 md:w-7" strokeWidth={2.5} />
@@ -272,7 +301,10 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
             {/* Header */}
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-800">
-                {tipo === 'INGRESO' ? 'Agregar Ingreso' : tipo === 'GASTO' ? 'Agregar Gasto' : 'Nueva Transferencia'}
+                {tipo === 'INGRESO' ? 'Agregar Ingreso'
+                  : tipo === 'TRANSFERENCIA' ? 'Nueva Transferencia'
+                  : isCardSelected ? 'Compra en tarjeta'
+                  : 'Agregar Gasto'}
               </h2>
               <button
                 onClick={closeModal}
@@ -283,7 +315,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
               </button>
             </div>
 
-            {/* Type toggle */}
+            {/* Type toggle — 3 buttons */}
             <div className="mb-6 flex gap-2">
               <button
                 onClick={() => setTipo('GASTO')}
@@ -342,7 +374,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
               </div>
             </div>
 
-            {/* Description input — hidden for transfers (auto-generated from account names) */}
+            {/* Description input — hidden for transfers */}
             {tipo !== 'TRANSFERENCIA' && (
               <div className="mb-4">
                 <input
@@ -350,20 +382,28 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   maxLength={200}
-                  placeholder="Descripción (opcional) — Ej: café en la ofi"
+                  placeholder={isCardSelected ? 'Descripción — Ej: TV 55"' : 'Descripción (opcional) — Ej: café en la ofi'}
                   className="w-full rounded-lg border-2 border-gray-200 px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:outline-none"
                 />
               </div>
             )}
 
-            {/* Account selector (origin) */}
-            {paymentAccounts.length > 0 && (
+            {/* Account / Card selector (origin) */}
+            {showAccountSelector && (
               <div className="mb-4">
                 <div className="mb-2 flex items-center justify-between">
                   <label htmlFor="qa-account" className="text-sm font-medium text-gray-700">
                     {tipo === 'TRANSFERENCIA' ? 'Desde' : 'Cuenta'}
                   </label>
-                  {selectedAccount && (
+                  {isCardSelected && selectedCard ? (
+                    <span className="text-xs text-gray-500">
+                      {selectedCard.moneda}{' '}
+                      <span className="font-semibold text-gray-700">
+                        {formatBalance(selectedCard.limite_disponible)}
+                      </span>{' '}
+                      disponible
+                    </span>
+                  ) : selectedAccount ? (
                     <span className="text-xs text-gray-500">
                       {selectedAccount.moneda}{' '}
                       <span
@@ -377,7 +417,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
                       </span>{' '}
                       disponible
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <select
                   id="qa-account"
@@ -385,21 +425,87 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
                   onChange={(e) => {
                     const newOrigin = e.target.value || undefined;
                     setSelectedAccountId(newOrigin);
+                    // Reset cuotas when switching away from a card
+                    if (!newOrigin?.startsWith('card:')) {
+                      setCantidadCuotas(1);
+                    }
                     // If destination equals new origin, reset it
-                    if (destinoAccountId === newOrigin) {
+                    if (!newOrigin?.startsWith('card:') && destinoAccountId === newOrigin) {
                       setDestinoAccountId(
                         paymentAccounts.find((a) => a.id !== newOrigin)?.id,
                       );
                     }
                   }}
-                  className="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors focus:border-blue-500 focus:outline-none"
+                  className={`w-full rounded-lg border-2 bg-white px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors focus:outline-none ${
+                    isCardSelected
+                      ? 'border-amber-300 focus:border-amber-500'
+                      : 'border-gray-200 focus:border-blue-500'
+                  }`}
                 >
-                  {paymentAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nombre} · {a.moneda} {formatBalance(a.saldo_actual)}
-                    </option>
-                  ))}
+                  {paymentAccounts.length > 0 && tipo === 'GASTO' && activeCards.length > 0 ? (
+                    <optgroup label="Cuentas">
+                      {paymentAccounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.nombre} · {a.moneda} {formatBalance(a.saldo_actual)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    paymentAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.nombre} · {a.moneda} {formatBalance(a.saldo_actual)}
+                      </option>
+                    ))
+                  )}
+                  {tipo === 'GASTO' && activeCards.length > 0 && (
+                    <optgroup label="Tarjetas de crédito">
+                      {activeCards.map((c) => (
+                        <option key={c.id} value={`card:${c.id}`}>
+                          {c.nombre} · {c.moneda} {formatBalance(c.limite_disponible)} disponible
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
+
+                {/* Cuotas pills — auto-appear when a card is selected */}
+                {isCardSelected && (
+                  <div className="mt-3">
+                    <label className="mb-2 block text-xs font-medium text-gray-600">Cuotas</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {[1, 3, 6, 12].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setCantidadCuotas(n)}
+                          className={`rounded-lg border-2 px-3 py-1.5 text-sm font-semibold transition-all ${
+                            cantidadCuotas === n
+                              ? 'border-amber-500 bg-amber-50 text-amber-700'
+                              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {n === 1 ? '1 pago' : `${n}×`}
+                        </button>
+                      ))}
+                      <input
+                        type="number"
+                        min={1}
+                        max={48}
+                        value={cantidadCuotas}
+                        onChange={(e) => {
+                          const v = Math.min(48, Math.max(1, parseInt(e.target.value) || 1));
+                          setCantidadCuotas(v);
+                        }}
+                        className="w-16 rounded-lg border-2 border-gray-200 px-2 py-1.5 text-center text-sm font-semibold text-gray-800 focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                    {montoNumerico > 0 && cantidadCuotas > 1 && (
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        ≈ ${formatBalance(montoNumerico / cantidadCuotas)} por cuota
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -492,8 +598,8 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
               )}
             </div>
 
-            {/* Discount fund section — only for gastos */}
-            {tipo === 'GASTO' && (
+            {/* Discount fund section — only for regular gastos (not card purchases) */}
+            {tipo === 'GASTO' && !isCardSelected && (
               <div className="mb-4">
                 {/* Toggle */}
                 <label
@@ -634,6 +740,8 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
                   ? 'cursor-not-allowed bg-gray-300'
                   : tipo === 'INGRESO'
                   ? 'bg-green-500 hover:bg-green-600 active:scale-[0.98]'
+                  : isCardSelected
+                  ? 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98]'
                   : tipo === 'GASTO'
                   ? 'bg-red-500 hover:bg-red-600 active:scale-[0.98]'
                   : 'bg-blue-500 hover:bg-blue-600 active:scale-[0.98]'

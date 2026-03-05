@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, X, Gift } from 'lucide-react';
+import { ChevronDown, X, Gift, CreditCard, Landmark } from 'lucide-react';
 import type { Movement } from '@/hooks/useMovements';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -9,7 +9,7 @@ type FilterGroup = '' | 'income' | 'expense' | 'transfer';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const INCOME_TYPES = new Set<TipoMovimiento>(['INGRESO', 'RETORNO_INVERSION', 'INGRESO_INICIAL']);
+const INCOME_TYPES = new Set<TipoMovimiento>(['INGRESO', 'RETORNO_INVERSION', 'INGRESO_INICIAL', 'COBRO_DEUDA']);
 const EXPENSE_TYPES = new Set<TipoMovimiento>([
   'GASTO', 'PAGO_TARJETA', 'GASTO_TARJETA', 'PAGO_DEUDA', 'INVERSION', 'GASTO_CON_DESCUENTO',
 ]);
@@ -70,6 +70,9 @@ function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Mo
   const amountClass = getAmountClass(movement.tipo);
 
   const isTransfer = movement.tipo === 'TRANSFERENCIA';
+  const isCardMovement =
+    movement.tipo === 'GASTO_TARJETA' || movement.tipo === 'PAGO_TARJETA';
+  const isDebtMovement = movement.tipo === 'PAGO_DEUDA' || movement.tipo === 'COBRO_DEUDA';
 
   const transferLabel = isTransfer
     ? [movement.cuenta_origen?.nombre, movement.cuenta_destino?.nombre]
@@ -77,18 +80,32 @@ function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Mo
         .join(' → ')
     : null;
 
-  const accountName = isTransfer
-    ? null
-    : (movement.cuenta_origen?.nombre ?? movement.cuenta_destino?.nombre);
+  const accountName =
+    isTransfer || isCardMovement
+      ? null
+      : (movement.cuenta_origen?.nombre ?? movement.cuenta_destino?.nombre);
+
+  const cardName = isCardMovement ? movement.tarjeta?.nombre : null;
+  const debtName = isDebtMovement ? movement.deuda?.acreedor : null;
 
   const primaryLabel = isTransfer ? (transferLabel ?? movement.descripcion) : movement.descripcion;
-  const meta = isTransfer ? null : [movement.categoria, accountName].filter(Boolean).join(' · ');
+  const meta = isTransfer
+    ? null
+    : [movement.categoria, cardName ?? debtName ?? accountName].filter(Boolean).join(' · ');
 
   return (
     <div>
       <div className="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-surface">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-text-primary">{primaryLabel}</p>
+          <p className="flex items-center gap-1 truncate text-sm font-medium text-text-primary">
+            {isCardMovement && (
+              <CreditCard className="h-3.5 w-3.5 shrink-0 text-warning" />
+            )}
+            {isDebtMovement && (
+              <Landmark className="h-3.5 w-3.5 shrink-0 text-text-secondary" />
+            )}
+            <span className="truncate">{primaryLabel}</span>
+          </p>
           {meta && (
             <p className="mt-0.5 truncate text-xs text-text-secondary">{meta}</p>
           )}

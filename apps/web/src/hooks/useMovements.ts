@@ -7,6 +7,7 @@ type TipoMovimiento =
   | 'PAGO_TARJETA'
   | 'GASTO_TARJETA'
   | 'PAGO_DEUDA'
+  | 'COBRO_DEUDA'
   | 'INVERSION'
   | 'RETORNO_INVERSION'
   | 'AJUSTE'
@@ -21,6 +22,18 @@ interface CuentaRef {
   moneda: string;
 }
 
+interface TarjetaRef {
+  id: string;
+  nombre: string;
+  tipo: string;
+}
+
+interface DeudaRef {
+  id: string;
+  acreedor: string;
+  direccion: 'POR_PAGAR' | 'POR_COBRAR';
+}
+
 export interface Movement {
   id: string;
   tipo: TipoMovimiento;
@@ -29,8 +42,11 @@ export interface Movement {
   descripcion: string;
   categoria?: string | null;
   fecha: string;
+  tarjeta_id?: string | null;
   cuenta_origen?: CuentaRef | null;
   cuenta_destino?: CuentaRef | null;
+  tarjeta?: TarjetaRef | null;
+  deuda?: DeudaRef | null;
   movimiento_relacionado_id?: string | null;
   metadata?: { monto_total?: number; porcentaje_descuento?: number } | null;
 }

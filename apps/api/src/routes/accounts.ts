@@ -5,6 +5,7 @@ import {
   updateAccountSchema,
   adjustBalanceSchema,
   getAccountsQuerySchema,
+  recargarFondoSchema,
 } from '../schemas/accounts.schema';
 import { z } from 'zod';
 
@@ -286,6 +287,59 @@ router.post('/:id/ajustar', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Error al ajustar saldo',
+    });
+  }
+});
+
+/**
+ * POST /api/cuentas/:id/recargar
+ * Recharge discount fund (FONDO_DESCUENTO accounts only)
+ * Creates an INGRESO movement with the specified amount
+ */
+router.post('/:id/recargar', async (req: Request, res: Response) => {
+  try {
+    const usuarioId = getUserId(req);
+    const { id } = req.params;
+
+    // Validate request body
+    const data = recargarFondoSchema.parse(req.body);
+
+    const cuenta = await accountsService.recargarFondo(id, usuarioId, data.monto);
+
+    res.json({
+      success: true,
+      message: 'Fondo recargado exitosamente',
+      data: cuenta,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos inválidos',
+        details: error.errors,
+      });
+    }
+
+    if (error instanceof Error && error.message === 'Cuenta no encontrada') {
+      return res.status(404).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    if (
+      error instanceof Error &&
+      (error.message.includes('FONDO_DESCUENTO') || error.message.includes('inactiva') || error.message.includes('monto'))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al recargar fondo',
     });
   }
 });

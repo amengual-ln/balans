@@ -37,15 +37,16 @@ model Usuario {
 }
 
 model Cuenta {
-  id            String   @id @default(uuid())
-  usuario_id    String
-  nombre        String
-  tipo          TipoCuenta
-  moneda        String
-  saldo_actual  Decimal  @default(0) @db.Decimal(15, 2)
-  activa        Boolean  @default(true)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id               String   @id @default(uuid())
+  usuario_id       String
+  nombre           String
+  tipo             TipoCuenta
+  moneda           String
+  saldo_actual     Decimal  @default(0) @db.Decimal(15, 2)
+  recarga_mensual  Decimal? @db.Decimal(15, 2)
+  activa           Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
   // Relations
   usuario                Usuario       @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -163,6 +164,7 @@ model Deuda {
   id               String   @id @default(uuid())
   usuario_id       String
   tipo             TipoDeuda
+  direccion        DireccionDeuda @default(POR_PAGAR)
   acreedor         String
   monto_total      Decimal  @db.Decimal(15, 2)
   monto_pendiente  Decimal  @db.Decimal(15, 2)
@@ -280,6 +282,7 @@ enum TipoMovimiento {
   PAGO_TARJETA
   GASTO_TARJETA
   PAGO_DEUDA
+  COBRO_DEUDA
   INVERSION
   RETORNO_INVERSION
   AJUSTE
@@ -293,6 +296,11 @@ enum TipoDeuda {
   CREDITO_BILLETERA
   PRESTAMO
   OTRO
+}
+
+enum DireccionDeuda {
+  POR_PAGAR
+  POR_COBRAR
 }
 
 enum TipoInversion {

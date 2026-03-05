@@ -1,3 +1,4 @@
+import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../lib/prisma';
 import type { CreateAccountInput, UpdateAccountInput, AdjustBalanceInput } from '../schemas/accounts.schema';
 
@@ -80,6 +81,7 @@ export class AccountsService {
         tipo: true,
         moneda: true,
         saldo_actual: true,
+        recarga_mensual: true,
         activa: true,
         created_at: true,
         updated_at: true,
@@ -146,6 +148,7 @@ export class AccountsService {
           moneda: data.moneda,
           saldo_actual: data.saldo_inicial || 0,
           activa: data.activa ?? true,
+          ...(data.recarga_mensual !== undefined && { recarga_mensual: new Decimal(data.recarga_mensual) }),
         },
       });
 
@@ -199,6 +202,7 @@ export class AccountsService {
       data: {
         ...(data.nombre && { nombre: data.nombre }),
         ...(data.activa !== undefined && { activa: data.activa }),
+        ...(data.recarga_mensual !== undefined && { recarga_mensual: data.recarga_mensual ? new Decimal(data.recarga_mensual) : null }),
         updated_at: new Date(),
       },
     });
@@ -328,6 +332,72 @@ export class AccountsService {
       balance_calculado: balanceCalculado,
       movimientos_por_tipo: movimientosPorTipo,
     };
+  }
+
+  /**
+   * Recharge discount fund (FONDO_DESCUENTO only)
+   * Creates an INGRESO movement for the specified amount
+   */
+  async recargarFondo(id: string, usuarioId: string, monto?: number) {
+    // Verify account exists and belongs to user
+    const cuenta = await prisma.cuenta.findFirst({
+      where: {
+        id,
+        usuario_id: usuarioId,
+      },
+    });
+
+    if (!cuenta) {
+      throw new Error('Cuenta no encontrada');
+    }
+
+    // Verify it's a FONDO_DESCUENTO account
+    if (cuenta.tipo !== 'FONDO_DESCUENTO') {
+      throw new Error('Solo se puede recargar cuentas de tipo FONDO_DESCUENTO');
+    }
+
+    if (!cuenta.activa) {
+      throw new Error('No se puede recargar una cuenta inactiva');
+    }
+
+    // Determine amount: use provided monto or fall back to recarga_mensual
+    const montoCarga = monto ?? (cuenta.recarga_mensual ? Number(cuenta.recarga_mensual) : null);
+
+    if (!montoCarga || montoCarga <= 0) {
+      throw new Error(
+        'El monto debe ser mayor a 0. Configure recarga_mensual en la cuenta o proporcione un monto.'
+      );
+    }
+
+    // Create AJUSTE movement and set balance directly to monto (reset semantics)
+    const result = await prisma.$transaction(async (tx) => {
+      const saldoAnterior = Number(cuenta.saldo_actual);
+      const diferencia = montoCarga - saldoAnterior;
+
+      await tx.movimiento.create({
+        data: {
+          usuario_id: usuarioId,
+          tipo: 'AJUSTE',
+          cuenta_id: id,
+          monto: new Decimal(Math.abs(diferencia) > 0 ? Math.abs(diferencia) : montoCarga),
+          moneda: cuenta.moneda,
+          descripcion: `Recarga mensual fondo — saldo anterior: ${saldoAnterior.toFixed(2)}`,
+          fecha: new Date(),
+        },
+      });
+
+      // Set balance directly to the recharge amount (reset, not accumulate)
+      const updatedCuenta = await tx.cuenta.update({
+        where: { id },
+        data: {
+          saldo_actual: new Decimal(montoCarga),
+        },
+      });
+
+      return updatedCuenta;
+    });
+
+    return result;
   }
 }
 

@@ -7,6 +7,8 @@ import type {
   CreateTransferInput,
   GetMovementsQuery,
   ExpenseWithDiscountInput,
+  CreateCardPurchaseInput,
+  CreateCardPaymentInput,
 } from '../schemas/movements.schema';
 
 export class MovementsService {
@@ -511,6 +513,237 @@ export class MovementsService {
   }
 
   /**
+   * Compute the first cuota due date based on purchase date and card billing cycle.
+   * If the purchase day is past dia_cierre, the first due date is next month's dia_vencimiento.
+   * Otherwise it's the current month's dia_vencimiento.
+   */
+  private computeFirstDueDate(
+    fechaCompra: Date,
+    diaCierre: number,
+    diaVencimiento: number
+  ): Date {
+    const year = fechaCompra.getFullYear();
+    const month = fechaCompra.getMonth(); // 0-indexed
+    const day = fechaCompra.getDate();
+
+    let dueYear = year;
+    let dueMonth = month;
+
+    if (day > diaCierre) {
+      // Past cierre — first due date is next billing cycle
+      dueMonth = month + 1;
+      if (dueMonth > 11) {
+        dueMonth = 0;
+        dueYear = year + 1;
+      }
+    }
+
+    return new Date(dueYear, dueMonth, diaVencimiento);
+  }
+
+  /**
+   * Add months to a date (handles month overflow)
+   */
+  private addMonths(date: Date, months: number): Date {
+    const result = new Date(date);
+    result.setMonth(result.getMonth() + months);
+    return result;
+  }
+
+  /**
+   * Create installment card purchase — implements RN-004
+   */
+  async createCardPurchase(usuarioId: string, data: CreateCardPurchaseInput) {
+    const tarjeta = await prisma.tarjeta.findFirst({
+      where: { id: data.tarjeta_id, usuario_id: usuarioId },
+    });
+
+    if (!tarjeta) {
+      throw new Error('Tarjeta no encontrada');
+    }
+
+    if (!tarjeta.activa) {
+      throw new Error(`La tarjeta "${tarjeta.nombre}" está inactiva`);
+    }
+
+    const montoTotal = data.monto;
+    const cantidadCuotas = data.cantidad_cuotas ?? 1;
+    const limiteDisponible = Number(tarjeta.limite_total) - Number(tarjeta.limite_comprometido);
+
+    if (limiteDisponible < montoTotal) {
+      throw new Error(
+        `Límite de crédito insuficiente en "${tarjeta.nombre}". Disponible: $${limiteDisponible.toFixed(2)}, Requerido: $${montoTotal.toFixed(2)}`
+      );
+    }
+
+    // Compute cuota amounts (distribute rounding error to last cuota)
+    const montoPorCuotaBase = Math.round((montoTotal / cantidadCuotas) * 100) / 100;
+    const sumaAnteriores = montoPorCuotaBase * (cantidadCuotas - 1);
+    const montoUltimaCuota = Math.round((montoTotal - sumaAnteriores) * 100) / 100;
+
+    const fechaCompra = data.fecha ?? new Date();
+    const firstDueDate = this.computeFirstDueDate(
+      fechaCompra,
+      tarjeta.dia_cierre,
+      tarjeta.dia_vencimiento
+    );
+
+    const moneda = data.moneda ?? tarjeta.moneda;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create GASTO_TARJETA movement (does NOT debit account — card charges don't move cash)
+      const movimiento = await tx.movimiento.create({
+        data: {
+          usuario_id: usuarioId,
+          tipo: 'GASTO_TARJETA',
+          cuenta_id: tarjeta.cuenta_id,
+          tarjeta_id: tarjeta.id,
+          monto: montoTotal,
+          moneda,
+          descripcion: data.descripcion,
+          categoria: data.categoria,
+          fecha: fechaCompra,
+          tasa_conversion: data.tasa_conversion,
+        },
+      });
+
+      // 2. Create CompraEnCuotas record
+      const compra = await tx.compraEnCuotas.create({
+        data: {
+          usuario_id: usuarioId,
+          tarjeta_id: tarjeta.id,
+          movimiento_id: movimiento.id,
+          descripcion: data.descripcion,
+          monto_total: montoTotal,
+          cantidad_cuotas: cantidadCuotas,
+          monto_por_cuota: montoPorCuotaBase,
+          fecha_compra: fechaCompra,
+          categoria: data.categoria,
+        },
+      });
+
+      // 3. Create N Cuota records with monthly due dates
+      const cuotasData = Array.from({ length: cantidadCuotas }, (_, i) => ({
+        compra_id: compra.id,
+        numero_cuota: i + 1,
+        monto: i === cantidadCuotas - 1 ? montoUltimaCuota : montoPorCuotaBase,
+        fecha_vencimiento: this.addMonths(firstDueDate, i),
+      }));
+
+      await tx.cuota.createMany({ data: cuotasData });
+
+      // 4. Increment card's limite_comprometido
+      await tx.tarjeta.update({
+        where: { id: tarjeta.id },
+        data: { limite_comprometido: { increment: montoTotal } },
+      });
+
+      return { movimiento, compra, cuotas_creadas: cantidadCuotas };
+    });
+
+    return result;
+  }
+
+  /**
+   * Create card payment — implements RN-005 (FIFO installment clearing)
+   */
+  async createCardPayment(usuarioId: string, data: CreateCardPaymentInput) {
+    // Validate source account has sufficient balance
+    await this.validateSufficientBalance(data.cuenta_id, data.monto);
+    await this.validateAccountActive(data.cuenta_id);
+
+    const tarjeta = await prisma.tarjeta.findFirst({
+      where: { id: data.tarjeta_id, usuario_id: usuarioId },
+    });
+
+    if (!tarjeta) {
+      throw new Error('Tarjeta no encontrada');
+    }
+
+    const cuenta = await prisma.cuenta.findUnique({
+      where: { id: data.cuenta_id },
+      select: { moneda: true },
+    });
+
+    const moneda = data.moneda ?? cuenta?.moneda ?? tarjeta.moneda;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create PAGO_TARJETA movement
+      const movimiento = await tx.movimiento.create({
+        data: {
+          usuario_id: usuarioId,
+          tipo: 'PAGO_TARJETA',
+          cuenta_id: data.cuenta_id,
+          tarjeta_id: tarjeta.id,
+          monto: data.monto,
+          moneda,
+          descripcion: data.descripcion || `Pago tarjeta ${tarjeta.nombre}`,
+          fecha: data.fecha ?? new Date(),
+          tasa_conversion: data.tasa_conversion,
+        },
+      });
+
+      // 2. Debit source account
+      await this.updateAccountBalance(tx, data.cuenta_id, data.monto, 'subtract');
+
+      // 3. FIFO: fetch all unpaid cuotas ordered by fecha_vencimiento ASC
+      const cuotasPendientes = await tx.cuota.findMany({
+        where: {
+          pagada: false,
+          compra: { tarjeta_id: tarjeta.id, usuario_id: usuarioId },
+        },
+        include: { compra: true },
+        orderBy: { fecha_vencimiento: 'asc' },
+      });
+
+      // 4. Walk cuotas, mark paid FIFO until payment amount is consumed
+      let montoRestante = data.monto;
+      let cuotasPagadasCount = 0;
+      const comprasPagadas = new Map<string, number>(); // compra_id → cuotas_pagadas_in_this_payment
+
+      for (const cuota of cuotasPendientes) {
+        const montoCuota = Number(cuota.monto);
+        if (montoRestante < montoCuota) break;
+
+        await tx.cuota.update({
+          where: { id: cuota.id },
+          data: { pagada: true, fecha_pago: data.fecha ?? new Date() },
+        });
+
+        montoRestante -= montoCuota;
+        cuotasPagadasCount++;
+
+        const prev = comprasPagadas.get(cuota.compra_id) ?? 0;
+        comprasPagadas.set(cuota.compra_id, prev + 1);
+      }
+
+      // 5. Update cuotas_pagadas on each affected compra, release limit if fully paid
+      for (const [compraId, pagadas] of comprasPagadas.entries()) {
+        const compra = cuotasPendientes.find((c) => c.compra_id === compraId)?.compra;
+        if (!compra) continue;
+
+        const nuevosCuotasPagadas = compra.cuotas_pagadas + pagadas;
+        await tx.compraEnCuotas.update({
+          where: { id: compraId },
+          data: { cuotas_pagadas: nuevosCuotasPagadas },
+        });
+
+        // If all cuotas are now paid, release the committed credit
+        if (nuevosCuotasPagadas >= compra.cantidad_cuotas) {
+          await tx.tarjeta.update({
+            where: { id: tarjeta.id },
+            data: { limite_comprometido: { decrement: compra.monto_total } },
+          });
+        }
+      }
+
+      return { movimiento, cuotas_pagadas: cuotasPagadasCount };
+    });
+
+    return result;
+  }
+
+  /**
    * Get movements with filters and pagination
    */
   async getMovements(usuarioId: string, query: GetMovementsQuery) {
@@ -564,6 +797,7 @@ export class MovementsService {
           fecha: true,
           cuenta_id: true,
           cuenta_destino_id: true,
+          tarjeta_id: true,
           movimiento_relacionado_id: true,
           metadata: true,
           cuenta_origen: {
@@ -580,6 +814,20 @@ export class MovementsService {
               nombre: true,
               tipo: true,
               moneda: true,
+            },
+          },
+          tarjeta: {
+            select: {
+              id: true,
+              nombre: true,
+              tipo: true,
+            },
+          },
+          deuda: {
+            select: {
+              id: true,
+              acreedor: true,
+              direccion: true,
             },
           },
         },
@@ -605,6 +853,7 @@ export class MovementsService {
           mov.tipo === 'INGRESO' ||
           mov.tipo === 'RETORNO_INVERSION' ||
           mov.tipo === 'INGRESO_INICIAL' ||
+          mov.tipo === 'COBRO_DEUDA' ||
           (mov.tipo === 'TRANSFERENCIA' && mov.cuenta_destino_id === query.cuenta_id) ||
           (mov.tipo === 'AJUSTE' && Number(mov.monto) > 0);
 
@@ -664,7 +913,46 @@ export class MovementsService {
       throw new Error('Movimiento no encontrado');
     }
 
-    // Validate: cannot delete if it's part of an installment purchase
+    // PAGO_TARJETA: prohibit deletion (reversing installment marks is not safe)
+    if (movimiento.tipo === 'PAGO_TARJETA') {
+      throw new Error(
+        'No se pueden eliminar pagos de tarjeta. Registrá un movimiento correctivo si es necesario.'
+      );
+    }
+
+    // PAGO_DEUDA and COBRO_DEUDA: prohibit deletion (reversing debt payments is not safe)
+    if (movimiento.tipo === 'PAGO_DEUDA' || movimiento.tipo === 'COBRO_DEUDA') {
+      throw new Error(
+        'No se pueden eliminar pagos de deuda. Registrá un movimiento correctivo si es necesario.'
+      );
+    }
+
+    // GASTO_TARJETA: reverse limit, delete compra (cascade to cuotas)
+    if (movimiento.tipo === 'GASTO_TARJETA') {
+      const compra = await prisma.compraEnCuotas.findFirst({
+        where: { movimiento_id: id },
+      });
+
+      if (compra && compra.cuotas_pagadas > 0) {
+        throw new Error('No se puede eliminar una compra con cuotas ya pagadas');
+      }
+
+      await prisma.$transaction(async (tx) => {
+        if (compra) {
+          await tx.tarjeta.update({
+            where: { id: compra.tarjeta_id },
+            data: { limite_comprometido: { decrement: compra.monto_total } },
+          });
+          // Delete compra — cascades to cuotas via Prisma schema onDelete: Cascade
+          await tx.compraEnCuotas.delete({ where: { id: compra.id } });
+        }
+        await tx.movimiento.delete({ where: { id } });
+      });
+
+      return { message: 'Movimiento eliminado exitosamente' };
+    }
+
+    // Validate: cannot delete other movement types that are part of an installment purchase
     const compraEnCuotas = await prisma.compraEnCuotas.findFirst({
       where: { movimiento_id: id },
     });
@@ -835,7 +1123,7 @@ export class MovementsService {
       }),
     ]);
 
-    const INCOME_TYPES = new Set(['INGRESO', 'RETORNO_INVERSION']);
+    const INCOME_TYPES = new Set(['INGRESO', 'RETORNO_INVERSION', 'COBRO_DEUDA']);
     const EXPENSE_TYPES = new Set(['GASTO', 'PAGO_TARJETA', 'PAGO_DEUDA', 'GASTO_CON_DESCUENTO']);
 
     let totalIngresos = 0;

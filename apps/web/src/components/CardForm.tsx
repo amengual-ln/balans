@@ -1,15 +1,16 @@
 import { useEffect } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { X } from 'lucide-react';
+import type { Account } from '@/hooks/useAccounts';
 
-// ─── Validation schema (mirrors backend createAccountSchema) ─────────────────
+// ─── Validation schema (mirrors backend createCardSchema) ─────────────────────
 
 const VALID_CURRENCIES = ['ARS', 'USD', 'EUR', 'BRL', 'CLP', 'UYU'] as const;
-const VALID_TIPOS = ['BANCO', 'BILLETERA', 'BROKER', 'EFECTIVO', 'FONDO_DESCUENTO'] as const;
+const VALID_TIPOS = ['VISA', 'MASTERCARD', 'OTRA'] as const;
 
-const accountFormSchema = z.object({
+const cardFormSchema = z.object({
   nombre: z
     .string()
     .min(1, 'El nombre es requerido')
@@ -17,34 +18,37 @@ const accountFormSchema = z.object({
     .trim(),
   tipo: z.enum(VALID_TIPOS, { errorMap: () => ({ message: 'Tipo requerido' }) }),
   moneda: z.enum(VALID_CURRENCIES, { errorMap: () => ({ message: 'Moneda requerida' }) }),
-  saldo_inicial: z
+  cuenta_id: z.string().min(1, 'La cuenta asociada es requerida'),
+  limite_total: z
     .string()
-    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, {
-      message: 'El saldo inicial debe ser 0 o mayor',
-    })
-    .default('0'),
-  recarga_mensual: z
+    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, {
+      message: 'El límite debe ser mayor a 0',
+    }),
+  dia_cierre: z
     .string()
-    .refine((v) => v === '' || (!isNaN(parseFloat(v)) && parseFloat(v) >= 0), {
-      message: 'Debe ser 0 o mayor',
-    })
-    .optional(),
-  fecha_inicio: z.string().optional(),
+    .refine((v) => {
+      const n = parseInt(v);
+      return !isNaN(n) && n >= 1 && n <= 31;
+    }, { message: 'Día inválido (1-31)' }),
+  dia_vencimiento: z
+    .string()
+    .refine((v) => {
+      const n = parseInt(v);
+      return !isNaN(n) && n >= 1 && n <= 31;
+    }, { message: 'Día inválido (1-31)' }),
 });
 
-type AccountFormData = z.infer<typeof accountFormSchema>;
+type CardFormData = z.infer<typeof cardFormSchema>;
 
-// ─── Options ─────────────────────────────────────────────────────────────────
+// ─── Options ──────────────────────────────────────────────────────────────────
 
-const TIPO_OPTIONS: { value: string; label: string }[] = [
-  { value: 'BANCO', label: 'Banco' },
-  { value: 'BILLETERA', label: 'Billetera' },
-  { value: 'BROKER', label: 'Broker' },
-  { value: 'EFECTIVO', label: 'Efectivo' },
-  { value: 'FONDO_DESCUENTO', label: 'Fondo de descuento' },
+const TIPO_OPTIONS = [
+  { value: 'VISA', label: 'Visa' },
+  { value: 'MASTERCARD', label: 'Mastercard' },
+  { value: 'OTRA', label: 'Otra' },
 ];
 
-const CURRENCY_OPTIONS: { value: string; label: string }[] = [
+const CURRENCY_OPTIONS = [
   { value: 'ARS', label: 'ARS — Peso argentino' },
   { value: 'USD', label: 'USD — Dólar' },
   { value: 'EUR', label: 'EUR — Euro' },
@@ -55,47 +59,49 @@ const CURRENCY_OPTIONS: { value: string; label: string }[] = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface AccountFormPayload {
+export interface CardFormPayload {
   nombre: string;
   tipo: string;
   moneda: string;
-  saldo_inicial: number;
-  recarga_mensual?: number;
+  cuenta_id: string;
+  limite_total: number;
+  dia_cierre: number;
+  dia_vencimiento: number;
 }
 
-interface AccountFormProps {
-  onSubmit: (data: AccountFormPayload) => Promise<void>;
+interface CardFormProps {
+  accounts: Account[];
+  onSubmit: (data: CardFormPayload) => Promise<void>;
   onClose: () => void;
   isSubmitting?: boolean;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function AccountForm({ onSubmit, onClose, isSubmitting }: AccountFormProps) {
+export default function CardForm({ accounts, onSubmit, onClose, isSubmitting }: CardFormProps) {
+  const paymentAccounts = accounts.filter((a) => a.activa && a.tipo !== 'FONDO_DESCUENTO');
+
   const {
     register,
     handleSubmit,
-    control,
     formState: { errors },
     setFocus,
-  } = useForm<AccountFormData>({
-    resolver: zodResolver(accountFormSchema),
+  } = useForm<CardFormData>({
+    resolver: zodResolver(cardFormSchema),
     defaultValues: {
-      tipo: 'BANCO',
+      tipo: 'VISA',
       moneda: 'ARS',
-      saldo_inicial: '0',
+      cuenta_id: paymentAccounts[0]?.id ?? '',
+      limite_total: '',
+      dia_cierre: '10',
+      dia_vencimiento: '20',
     },
   });
 
-  const tipoWatched = useWatch({ control, name: 'tipo' });
-  const isFondoDescuento = tipoWatched === 'FONDO_DESCUENTO';
-
-  // Auto-focus name on mount
   useEffect(() => {
     setFocus('nombre');
   }, [setFocus]);
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -105,27 +111,26 @@ export default function AccountForm({ onSubmit, onClose, isSubmitting }: Account
   }, [onClose]);
 
   const submit = handleSubmit(async (data) => {
-    const recargaVal = data.recarga_mensual && data.recarga_mensual !== '' ? parseFloat(data.recarga_mensual) : undefined;
     await onSubmit({
       nombre: data.nombre,
       tipo: data.tipo,
       moneda: data.moneda,
-      saldo_inicial: parseFloat(data.saldo_inicial),
-      ...(recargaVal !== undefined && recargaVal > 0 && { recarga_mensual: recargaVal }),
+      cuenta_id: data.cuenta_id,
+      limite_total: parseFloat(data.limite_total),
+      dia_cierre: parseInt(data.dia_cierre),
+      dia_vencimiento: parseInt(data.dia_vencimiento),
     });
   });
 
   return (
-    /* Backdrop */
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* Modal */}
       <div className="w-full max-w-md animate-fade-in rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
         {/* Header */}
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-text-primary">Nueva cuenta</h2>
+          <h2 className="text-lg font-bold text-text-primary">Nueva tarjeta</h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
@@ -136,7 +141,7 @@ export default function AccountForm({ onSubmit, onClose, isSubmitting }: Account
         </div>
 
         <form onSubmit={submit} noValidate className="space-y-4">
-          {/* Name */}
+          {/* Nombre */}
           <div>
             <label className="mb-1 block text-sm font-medium text-text-primary">
               Nombre <span className="text-negative">*</span>
@@ -144,7 +149,7 @@ export default function AccountForm({ onSubmit, onClose, isSubmitting }: Account
             <input
               {...register('nombre')}
               type="text"
-              placeholder="Ej: Cuenta corriente BNA"
+              placeholder="Ej: Visa BNA"
               className={`w-full rounded-lg border px-3 py-2.5 text-sm text-text-primary placeholder:text-text-secondary outline-none transition-colors
                 focus:border-primary focus:ring-2 focus:ring-primary/20
                 ${errors.nombre ? 'border-negative' : 'border-border'}`}
@@ -154,9 +159,8 @@ export default function AccountForm({ onSubmit, onClose, isSubmitting }: Account
             )}
           </div>
 
-          {/* Type + Currency row */}
+          {/* Tipo + Moneda */}
           <div className="grid grid-cols-2 gap-3">
-            {/* Type */}
             <div>
               <label className="mb-1 block text-sm font-medium text-text-primary">
                 Tipo <span className="text-negative">*</span>
@@ -171,12 +175,7 @@ export default function AccountForm({ onSubmit, onClose, isSubmitting }: Account
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
-              {errors.tipo && (
-                <p className="mt-1 text-xs text-negative">{errors.tipo.message}</p>
-              )}
             </div>
-
-            {/* Currency */}
             <div>
               <label className="mb-1 block text-sm font-medium text-text-primary">
                 Moneda <span className="text-negative">*</span>
@@ -191,61 +190,95 @@ export default function AccountForm({ onSubmit, onClose, isSubmitting }: Account
                   <option key={opt.value} value={opt.value}>{opt.value}</option>
                 ))}
               </select>
-              {errors.moneda && (
-                <p className="mt-1 text-xs text-negative">{errors.moneda.message}</p>
-              )}
             </div>
           </div>
 
-          {/* Initial balance */}
+          {/* Cuenta asociada */}
           <div>
             <label className="mb-1 block text-sm font-medium text-text-primary">
-              Saldo inicial
+              Cuenta asociada <span className="text-negative">*</span>
+            </label>
+            <select
+              {...register('cuenta_id')}
+              className={`w-full rounded-lg border px-3 py-2.5 text-sm text-text-primary outline-none transition-colors bg-white
+                focus:border-primary focus:ring-2 focus:ring-primary/20
+                ${errors.cuenta_id ? 'border-negative' : 'border-border'}`}
+            >
+              {paymentAccounts.length === 0 ? (
+                <option value="">Sin cuentas disponibles</option>
+              ) : (
+                paymentAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre} ({a.moneda})
+                  </option>
+                ))
+              )}
+            </select>
+            {errors.cuenta_id && (
+              <p className="mt-1 text-xs text-negative">{errors.cuenta_id.message}</p>
+            )}
+          </div>
+
+          {/* Límite total */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-text-primary">
+              Límite total <span className="text-negative">*</span>
             </label>
             <input
-              {...register('saldo_inicial')}
+              {...register('limite_total')}
               type="number"
-              min="0"
+              min="0.01"
               step="0.01"
-              placeholder="0"
+              placeholder="500000"
               inputMode="decimal"
               className={`w-full rounded-lg border px-3 py-2.5 text-sm text-text-primary placeholder:text-text-secondary outline-none transition-colors
                 focus:border-primary focus:ring-2 focus:ring-primary/20
-                ${errors.saldo_inicial ? 'border-negative' : 'border-border'}`}
+                ${errors.limite_total ? 'border-negative' : 'border-border'}`}
             />
-            {errors.saldo_inicial && (
-              <p className="mt-1 text-xs text-negative">{errors.saldo_inicial.message}</p>
+            {errors.limite_total && (
+              <p className="mt-1 text-xs text-negative">{errors.limite_total.message}</p>
             )}
-            <p className="mt-1 text-xs text-text-secondary">
-              Se creará un movimiento INGRESO_INICIAL por este monto
-            </p>
           </div>
 
-          {/* Monthly top-up — only for FONDO_DESCUENTO */}
-          {isFondoDescuento && (
+          {/* Día cierre + Día vencimiento */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-sm font-medium text-text-primary">
-                Recarga mensual (default)
+                Día de cierre <span className="text-negative">*</span>
               </label>
               <input
-                {...register('recarga_mensual')}
+                {...register('dia_cierre')}
                 type="number"
-                min="0"
-                step="0.01"
-                placeholder="Ej: 5000"
-                inputMode="decimal"
+                min="1"
+                max="31"
+                placeholder="10"
                 className={`w-full rounded-lg border px-3 py-2.5 text-sm text-text-primary placeholder:text-text-secondary outline-none transition-colors
                   focus:border-primary focus:ring-2 focus:ring-primary/20
-                  ${errors.recarga_mensual ? 'border-negative' : 'border-border'}`}
+                  ${errors.dia_cierre ? 'border-negative' : 'border-border'}`}
               />
-              {errors.recarga_mensual && (
-                <p className="mt-1 text-xs text-negative">{errors.recarga_mensual.message}</p>
+              {errors.dia_cierre && (
+                <p className="mt-1 text-xs text-negative">{errors.dia_cierre.message}</p>
               )}
-              <p className="mt-1 text-xs text-text-secondary">
-                Monto pre-llenado al presionar "Recargar" cada mes
-              </p>
             </div>
-          )}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-text-primary">
+                Día de vencimiento <span className="text-negative">*</span>
+              </label>
+              <input
+                {...register('dia_vencimiento')}
+                type="number"
+                min="1"
+                max="31"
+                placeholder="20"
+                className={`w-full rounded-lg border px-3 py-2.5 text-sm text-text-primary placeholder:text-text-secondary outline-none transition-colors
+                  focus:border-primary focus:ring-2 focus:ring-primary/20
+                  ${errors.dia_vencimiento ? 'border-negative' : 'border-border'}`}
+              />
+              {errors.dia_vencimiento && (
+                <p className="mt-1 text-xs text-negative">{errors.dia_vencimiento.message}</p>
+              )}
+            </div>
+          </div>
 
           {/* Actions */}
           <div className="flex gap-3 pt-1">
@@ -258,10 +291,10 @@ export default function AccountForm({ onSubmit, onClose, isSubmitting }: Account
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || paymentAccounts.length === 0}
               className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {isSubmitting ? 'Creando…' : 'Crear cuenta'}
+              {isSubmitting ? 'Creando…' : 'Crear tarjeta'}
             </button>
           </div>
         </form>

@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Movements from './pages/Movements';
 import Accounts from './pages/Accounts';
+import Cards from './pages/Cards';
+import Debts from './pages/Debts';
 import BottomNav from './components/BottomNav';
 
 export default function App() {
@@ -10,6 +12,8 @@ export default function App() {
         <Route path="/" element={<Navigate to="/movements" replace />} />
         <Route path="/movements" element={<Movements />} />
         <Route path="/accounts" element={<Accounts />} />
+        <Route path="/cards" element={<Cards />} />
+        <Route path="/debts" element={<Debts />} />
       </Routes>
       <BottomNav />
     </BrowserRouter>
