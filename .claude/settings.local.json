@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(nc:*)"
+      "Bash(nc:*)",
+      "Bash(cd /home/r42/proyectos/personal/freya-balans/apps/api && npx prisma db push 2>&1)",
+      "Bash(pnpm:*)"
     ]
   }
 }

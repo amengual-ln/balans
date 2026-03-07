@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { ArrowLeftRight, Building2, CreditCard, Landmark } from 'lucide-react';
+import { ArrowLeftRight, Building2, CreditCard, Landmark, RefreshCw } from 'lucide-react';
 
 const NAV_ITEMS = [
   { to: '/movements', label: 'Movimientos', Icon: ArrowLeftRight },
   { to: '/accounts', label: 'Cuentas', Icon: Building2 },
   { to: '/cards', label: 'Tarjetas', Icon: CreditCard },
   { to: '/debts', label: 'Deudas', Icon: Landmark },
+  { to: '/subscriptions', label: 'Suscripciones', Icon: RefreshCw },
 ];
 
 export default function BottomNav() {

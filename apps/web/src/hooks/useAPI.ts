@@ -41,4 +41,32 @@ export async function apiPost<T = unknown>(url: string, body: unknown): Promise<
   return res.json() as Promise<T>;
 }
 
+export async function apiPut<T = unknown>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-id': USER_ID,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(json.error ?? 'Error al actualizar');
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function apiDelete<T = unknown>(url: string): Promise<T> {
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: { 'x-user-id': USER_ID },
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(json.error ?? 'Error al eliminar');
+  }
+  return res.json() as Promise<T>;
+}
+
 export { USER_ID };

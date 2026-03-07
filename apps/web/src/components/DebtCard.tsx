@@ -1,5 +1,5 @@
 import { Landmark } from 'lucide-react';
-import { Debt, DireccionDeuda } from '@/hooks/useDebts';
+import { Debt } from '@/hooks/useDebts';
 
 interface PaidProgressBarProps {
   paid: number;
@@ -37,7 +37,6 @@ export default function DebtCard({ debt, onPay }: DebtCardProps) {
   const monto_pagado = monto_total - monto_pendiente;
 
   const isPayable = debt.direccion === 'POR_PAGAR';
-  const isReceivable = debt.direccion === 'POR_COBRAR';
 
   const directionLabel = isPayable ? 'Por pagar' : 'Por cobrar';
   const directionColor = isPayable ? 'text-negative' : 'text-positive';
