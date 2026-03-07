@@ -32,13 +32,17 @@ app.use(async (req, _res, next) => {
 // Health check with DB connectivity test
 app.get('/health', async (_req, res) => {
   try {
+    console.log('[HEALTH] Testing DB connection...')
     await prisma.$queryRaw`SELECT 1`
+    console.log('[HEALTH] DB connected successfully')
     res.json({ status: 'ok', message: 'Freya Balans API is running', db: 'connected' })
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[HEALTH] DB connection failed:', errorMsg)
     res.status(503).json({
       status: 'degraded',
       message: 'Database connection failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: errorMsg
     })
   }
 })
