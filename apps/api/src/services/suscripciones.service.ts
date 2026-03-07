@@ -1,9 +1,9 @@
-import { prisma } from '../lib/prisma';
+import { prisma } from '../lib/prisma.js';
 import {
   CreateSuscripcionInput,
   UpdateSuscripcionInput,
   PagarSuscripcionInput,
-} from '../schemas/suscripciones.schema';
+} from '../schemas/suscripciones.schema.js';
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 

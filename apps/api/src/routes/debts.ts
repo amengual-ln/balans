@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { debtsService } from '../services/debts.service';
+import { debtsService } from '../services/debts.service.js';
 import {
   createDebtSchema,
   updateDebtSchema,
   payDebtSchema,
-} from '../schemas/debts.schema';
+} from '../schemas/debts.schema.js';
 import { ZodError } from 'zod';
 
 const router = Router();

@@ -1,5 +1,5 @@
-import { prisma } from '../lib/prisma';
-import type { CreateCardInput, UpdateCardInput } from '../schemas/cards.schema';
+import { prisma } from '../lib/prisma.js';
+import type { CreateCardInput, UpdateCardInput } from '../schemas/cards.schema.js';
 
 export class CardsService {
   /**

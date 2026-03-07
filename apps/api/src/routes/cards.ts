@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { cardsService } from '../services/cards.service';
-import { createCardSchema, updateCardSchema } from '../schemas/cards.schema';
+import { cardsService } from '../services/cards.service.js';
+import { createCardSchema, updateCardSchema } from '../schemas/cards.schema.js';
 import { z } from 'zod';
 
 const router = Router();

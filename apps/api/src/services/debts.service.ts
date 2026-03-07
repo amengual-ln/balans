@@ -1,5 +1,5 @@
-import { prisma } from '../lib/prisma';
-import { CreateDebtInput, UpdateDebtInput, PayDebtInput } from '../schemas/debts.schema';
+import { prisma } from '../lib/prisma.js';
+import { CreateDebtInput, UpdateDebtInput, PayDebtInput } from '../schemas/debts.schema.js';
 
 export class DebtsService {
   async getDebts(usuarioId: string, direccion?: string) {

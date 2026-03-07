@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { suscripcionesService } from '../services/suscripciones.service';
+import { suscripcionesService } from '../services/suscripciones.service.js';
 import {
   createSuscripcionSchema,
   updateSuscripcionSchema,
   pagarSuscripcionSchema,
-} from '../schemas/suscripciones.schema';
+} from '../schemas/suscripciones.schema.js';
 import { ZodError } from 'zod';
 
 const router = Router();

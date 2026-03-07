@@ -1,6 +1,6 @@
 import { Decimal } from '@prisma/client/runtime/library';
-import { prisma } from '../lib/prisma';
-import type { CreateAccountInput, UpdateAccountInput, AdjustBalanceInput } from '../schemas/accounts.schema';
+import { prisma } from '../lib/prisma.js';
+import type { CreateAccountInput, UpdateAccountInput, AdjustBalanceInput } from '../schemas/accounts.schema.js';
 
 export class AccountsService {
   /**

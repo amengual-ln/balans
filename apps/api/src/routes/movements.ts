@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { movementsService } from '../services/movements.service';
+import { movementsService } from '../services/movements.service.js';
 import {
   quickAddMovementSchema,
   createIncomeSchema,
@@ -9,7 +9,7 @@ import {
   createCardPaymentSchema,
   getMovementsQuerySchema,
   expenseWithDiscountSchema,
-} from '../schemas/movements.schema';
+} from '../schemas/movements.schema.js';
 import { z } from 'zod';
 
 const router = Router();

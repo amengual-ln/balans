@@ -1,4 +1,4 @@
-import { prisma } from '../lib/prisma';
+import { prisma } from '../lib/prisma.js';
 import { Prisma } from '@prisma/client';
 import type {
   QuickAddMovementInput,
@@ -9,7 +9,7 @@ import type {
   ExpenseWithDiscountInput,
   CreateCardPurchaseInput,
   CreateCardPaymentInput,
-} from '../schemas/movements.schema';
+} from '../schemas/movements.schema.js';
 
 export class MovementsService {
   /**

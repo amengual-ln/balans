@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { accountsService } from '../services/accounts.service';
+import { accountsService } from '../services/accounts.service.js';
 import {
   createAccountSchema,
   updateAccountSchema,
   adjustBalanceSchema,
   getAccountsQuerySchema,
   recargarFondoSchema,
-} from '../schemas/accounts.schema';
+} from '../schemas/accounts.schema.js';
 import { z } from 'zod';
 
 const router = Router();
