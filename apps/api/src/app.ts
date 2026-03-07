@@ -29,9 +29,18 @@ app.use(async (req, _res, next) => {
   next()
 })
 
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', message: 'Freya Balans API is running' })
+// Health check with DB connectivity test
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    res.json({ status: 'ok', message: 'Freya Balans API is running', db: 'connected' })
+  } catch (error) {
+    res.status(503).json({
+      status: 'degraded',
+      message: 'Database connection failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
 })
 
 // Import routes

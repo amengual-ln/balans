@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import type {
   QuickAddMovementInput,
   CreateIncomeInput,
@@ -182,7 +182,7 @@ export class MovementsService {
     }
 
     // Create movement in a transaction
-    const movimiento = await prisma.$transaction(async (tx) => {
+    const movimiento = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Create the movement
       const newMovimiento = await tx.movimiento.create({
         data: {
@@ -233,7 +233,7 @@ export class MovementsService {
         : undefined;
 
     // Create movement in a transaction
-    const movimiento = await prisma.$transaction(async (tx) => {
+    const movimiento = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const newMovimiento = await tx.movimiento.create({
         data: {
           usuario_id: usuarioId,
@@ -292,7 +292,7 @@ export class MovementsService {
     await this.validateSufficientBalance(data.cuenta_id, montoEnMonedaCuenta);
 
     // Create movement in a transaction
-    const movimiento = await prisma.$transaction(async (tx) => {
+    const movimiento = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const newMovimiento = await tx.movimiento.create({
         data: {
           usuario_id: usuarioId,
@@ -363,7 +363,7 @@ export class MovementsService {
     const descripcion = data.descripcion || `${cuentaOrigen.nombre} → ${cuentaDestino.nombre}`;
 
     // Create transfer in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Create outgoing movement
       const movimientoSalida = await tx.movimiento.create({
         data: {
@@ -464,7 +464,7 @@ export class MovementsService {
     };
 
     // ── Create both movements atomically ────────────────────────────────────
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. GASTO_CON_DESCUENTO — actual payment from personal account
       const gastoMovimiento = await tx.movimiento.create({
         data: {
@@ -590,7 +590,7 @@ export class MovementsService {
 
     const moneda = data.moneda ?? tarjeta.moneda;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Create GASTO_TARJETA movement (does NOT debit account — card charges don't move cash)
       const movimiento = await tx.movimiento.create({
         data: {
@@ -667,7 +667,7 @@ export class MovementsService {
 
     const moneda = data.moneda ?? cuenta?.moneda ?? tarjeta.moneda;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Create PAGO_TARJETA movement
       const movimiento = await tx.movimiento.create({
         data: {
@@ -719,7 +719,7 @@ export class MovementsService {
 
       // 5. Update cuotas_pagadas on each affected compra, release limit if fully paid
       for (const [compraId, pagadas] of comprasPagadas.entries()) {
-        const compra = cuotasPendientes.find((c) => c.compra_id === compraId)?.compra;
+        const compra = cuotasPendientes.find((c: any) => c.compra_id === compraId)?.compra;
         if (!compra) continue;
 
         const nuevosCuotasPagadas = compra.cuotas_pagadas + pagadas;
@@ -937,7 +937,7 @@ export class MovementsService {
         throw new Error('No se puede eliminar una compra con cuotas ya pagadas');
       }
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         if (compra) {
           await tx.tarjeta.update({
             where: { id: compra.tarjeta_id },
@@ -964,7 +964,7 @@ export class MovementsService {
     }
 
     // Delete in a transaction (reverse balance changes)
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const monto = Number(movimiento.monto);
 
       // Reverse balance changes based on movement type
