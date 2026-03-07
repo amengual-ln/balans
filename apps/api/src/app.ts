@@ -33,16 +33,34 @@ app.use(async (req, _res, next) => {
 app.get('/health', async (_req, res) => {
   try {
     console.log('[HEALTH] Testing DB connection...')
+    console.log('[HEALTH] DATABASE_URL:', process.env.DATABASE_URL ? 'set' : 'not set')
+    console.log('[HEALTH] DIRECT_URL:', process.env.DIRECT_URL ? 'set' : 'not set')
     await prisma.$queryRaw`SELECT 1`
     console.log('[HEALTH] DB connected successfully')
     res.json({ status: 'ok', message: 'Freya Balans API is running', db: 'connected' })
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
     console.error('[HEALTH] DB connection failed:', errorMsg)
+    console.error('[HEALTH] Error code:', error instanceof Error && 'code' in error ? (error as any).code : 'unknown')
     res.status(503).json({
       status: 'degraded',
       message: 'Database connection failed',
       error: errorMsg
+    })
+  }
+})
+
+// DNS test endpoint
+app.get('/dns-test', async (_req, res) => {
+  try {
+    const { resolve4 } = await import('dns/promises')
+    const ips = await resolve4('db.dgmveedhkarpnlbmtobu.supabase.co')
+    res.json({ status: 'ok', dns_resolved: ips })
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'DNS resolution failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
     })
   }
 })
