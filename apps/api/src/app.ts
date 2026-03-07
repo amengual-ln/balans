@@ -1,6 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import { prisma } from './lib/prisma'
+import { prisma } from './lib/prisma.js'
 
 const app = express()
 
@@ -35,11 +35,11 @@ app.get('/health', (_req, res) => {
 })
 
 // Import routes
-import accountsRouter from './routes/accounts'
-import movementsRouter from './routes/movements'
-import cardsRouter from './routes/cards'
-import debtsRouter from './routes/debts'
-import suscripcionesRouter from './routes/suscripciones'
+import accountsRouter from './routes/accounts.js'
+import movementsRouter from './routes/movements.js'
+import cardsRouter from './routes/cards.js'
+import debtsRouter from './routes/debts.js'
+import suscripcionesRouter from './routes/suscripciones.js'
 
 // Routes
 app.get('/api', (_req, res) => {
