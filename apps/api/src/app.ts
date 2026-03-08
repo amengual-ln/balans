@@ -56,28 +56,43 @@ app.get('/network-test', async (_req, res) => {
 
   // Test DNS resolution
   try {
-    const { resolve4 } = await import('dns/promises')
-    const ips = await resolve4('db.dgmveedhkarpnlbmtobu.supabase.co')
-    results.dns_supabase = { status: 'ok', ips }
+    const { resolve4, resolve6 } = await import('dns/promises')
+    const ips4 = await resolve4('db.dgmveedhkarpnlbmtobu.supabase.co').catch(() => [])
+    const ips6 = await resolve6('db.dgmveedhkarpnlbmtobu.supabase.co').catch(() => [])
+    results.dns_supabase = { status: 'ok', ipv4: ips4, ipv6: ips6 }
   } catch (error) {
     results.dns_supabase = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
   }
 
-  // Test DNS to public server
+  // Test TCP connection to Supabase
   try {
-    const { resolve4 } = await import('dns/promises')
-    const ips = await resolve4('8.8.8.8')
-    results.dns_google = { status: 'ok', ips }
+    const net = await import('net')
+    const socket = net.createConnection({ host: 'db.dgmveedhkarpnlbmtobu.supabase.co', port: 6543, timeout: 5000 })
+
+    const connected = await new Promise((resolve) => {
+      socket.on('connect', () => {
+        socket.destroy()
+        resolve(true)
+      })
+      socket.on('error', () => {
+        resolve(false)
+      })
+    })
+
+    results.tcp_supabase_6543 = { status: connected ? 'ok' : 'failed' }
   } catch (error) {
-    results.dns_google = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
+    results.tcp_supabase_6543 = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
   }
 
-  // Test fetch to public URL
+  // Test fetch to Supabase REST API
   try {
-    const response = await fetch('https://www.google.com', { method: 'HEAD', timeout: 5000 })
-    results.fetch_google = { status: 'ok', statusCode: response.status }
+    const response = await fetch('https://dgmveedhkarpnlbmtobu.supabase.co/rest/v1/', {
+      headers: { apikey: process.env.VITE_SUPABASE_ANON_KEY || 'test' },
+      timeout: 5000
+    })
+    results.fetch_supabase_rest = { status: 'ok', statusCode: response.status }
   } catch (error) {
-    results.fetch_google = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
+    results.fetch_supabase_rest = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
   }
 
   res.json(results)
