@@ -50,19 +50,37 @@ app.get('/health', async (_req, res) => {
   }
 })
 
-// DNS test endpoint
-app.get('/dns-test', async (_req, res) => {
+// Network test endpoint
+app.get('/network-test', async (_req, res) => {
+  const results: any = {}
+
+  // Test DNS resolution
   try {
     const { resolve4 } = await import('dns/promises')
     const ips = await resolve4('db.dgmveedhkarpnlbmtobu.supabase.co')
-    res.json({ status: 'ok', dns_resolved: ips })
+    results.dns_supabase = { status: 'ok', ips }
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: 'DNS resolution failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    results.dns_supabase = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
   }
+
+  // Test DNS to public server
+  try {
+    const { resolve4 } = await import('dns/promises')
+    const ips = await resolve4('8.8.8.8')
+    results.dns_google = { status: 'ok', ips }
+  } catch (error) {
+    results.dns_google = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
+  }
+
+  // Test fetch to public URL
+  try {
+    const response = await fetch('https://www.google.com', { method: 'HEAD', timeout: 5000 })
+    results.fetch_google = { status: 'ok', statusCode: response.status }
+  } catch (error) {
+    results.fetch_google = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
+  }
+
+  res.json(results)
 })
 
 // Import routes
