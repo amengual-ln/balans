@@ -1,6 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import { prisma } from './lib/prisma.js'
+import { supabase } from './lib/supabase.js'
 
 const app = express()
 
@@ -15,15 +15,14 @@ const knownUserIds = new Set<string>()
 app.use(async (req, _res, next) => {
   const userId = req.headers['x-user-id'] as string | undefined
   if (userId && !knownUserIds.has(userId)) {
-    await prisma.usuario.upsert({
-      where: { id: userId },
-      update: {},
-      create: {
-        id: userId,
-        email: `${userId}@demo.local`,
-        nombre: 'Usuario demo',
-      },
-    }).catch(() => { /* ignore race conditions */ })
+    try {
+      await supabase
+        .from('usuarios')
+        .upsert(
+          { id: userId, email: `${userId}@demo.local`, nombre: 'Usuario demo' },
+          { onConflict: 'id', ignoreDuplicates: true },
+        )
+    } catch (_) { /* ignore race conditions */ }
     knownUserIds.add(userId)
   }
   next()
@@ -32,70 +31,18 @@ app.use(async (req, _res, next) => {
 // Health check with DB connectivity test
 app.get('/health', async (_req, res) => {
   try {
-    console.log('[HEALTH] Testing DB connection...')
-    console.log('[HEALTH] DATABASE_URL:', process.env.DATABASE_URL ? 'set' : 'not set')
-    console.log('[HEALTH] DIRECT_URL:', process.env.DIRECT_URL ? 'set' : 'not set')
-    await prisma.$queryRaw`SELECT 1`
-    console.log('[HEALTH] DB connected successfully')
+    const { error } = await supabase.from('usuarios').select('id').limit(1)
+    if (error) throw new Error(error.message)
     res.json({ status: 'ok', message: 'Freya Balans API is running', db: 'connected' })
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
     console.error('[HEALTH] DB connection failed:', errorMsg)
-    console.error('[HEALTH] Error code:', error instanceof Error && 'code' in error ? (error as any).code : 'unknown')
     res.status(503).json({
       status: 'degraded',
       message: 'Database connection failed',
-      error: errorMsg
+      error: errorMsg,
     })
   }
-})
-
-// Network test endpoint
-app.get('/network-test', async (_req, res) => {
-  const results: any = {}
-
-  // Test DNS resolution
-  try {
-    const { resolve4, resolve6 } = await import('dns/promises')
-    const ips4 = await resolve4('db.dgmveedhkarpnlbmtobu.supabase.co').catch(() => [])
-    const ips6 = await resolve6('db.dgmveedhkarpnlbmtobu.supabase.co').catch(() => [])
-    results.dns_supabase = { status: 'ok', ipv4: ips4, ipv6: ips6 }
-  } catch (error) {
-    results.dns_supabase = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
-  }
-
-  // Test TCP connection to Supabase
-  try {
-    const net = await import('net')
-    const socket = net.createConnection({ host: 'db.dgmveedhkarpnlbmtobu.supabase.co', port: 6543, timeout: 5000 })
-
-    const connected = await new Promise((resolve) => {
-      socket.on('connect', () => {
-        socket.destroy()
-        resolve(true)
-      })
-      socket.on('error', () => {
-        resolve(false)
-      })
-    })
-
-    results.tcp_supabase_6543 = { status: connected ? 'ok' : 'failed' }
-  } catch (error) {
-    results.tcp_supabase_6543 = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
-  }
-
-  // Test fetch to Supabase REST API
-  try {
-    const response = await fetch('https://dgmveedhkarpnlbmtobu.supabase.co/rest/v1/', {
-      headers: { apikey: process.env.VITE_SUPABASE_ANON_KEY || 'test' },
-      timeout: 5000
-    })
-    results.fetch_supabase_rest = { status: 'ok', statusCode: response.status }
-  } catch (error) {
-    results.fetch_supabase_rest = { status: 'error', error: error instanceof Error ? error.message : 'Unknown' }
-  }
-
-  res.json(results)
 })
 
 // Import routes

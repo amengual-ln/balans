@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "pnpm --parallel -r dev",
     "build": "pnpm -r build",
-    "build:vercel": "cd apps/api && npx prisma generate && cd ../.. && pnpm --filter @freya-balans/web build",
+    "build:vercel": "pnpm --filter @freya-balans/web build",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",

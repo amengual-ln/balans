@@ -1,79 +1,74 @@
-import { prisma } from '../lib/prisma.js';
-import { CreateDebtInput, UpdateDebtInput, PayDebtInput } from '../schemas/debts.schema.js';
+import { supabase } from '../lib/supabase.js'
+import { assertSuccess, assertOk } from '../lib/db.js'
+import type { CreateDebtInput, UpdateDebtInput, PayDebtInput } from '../schemas/debts.schema.js'
+
+const DEBT_LIST_SELECT = `
+  id, tipo, direccion, acreedor, monto_total, monto_pendiente, moneda,
+  fecha_inicio, cantidad_cuotas, monto_cuota, saldada,
+  pagos:pagos_deuda!deuda_id(count)
+`
+
+function shapeDebt(row: any) {
+  const { pagos: pagosArr, ...rest } = row
+  return {
+    ...rest,
+    _count: { pagos: (pagosArr as any)?.[0]?.count ?? 0 },
+  }
+}
 
 export class DebtsService {
   async getDebts(usuarioId: string, direccion?: string) {
-    const where: any = { usuario_id: usuarioId };
+    let q = supabase
+      .from('deudas')
+      .select(DEBT_LIST_SELECT)
+      .eq('usuario_id', usuarioId)
+      .order('saldada', { ascending: true })
+      .order('fecha_inicio', { ascending: false })
+
     if (direccion) {
-      where.direccion = direccion;
+      q = q.eq('direccion', direccion)
     }
 
-    return prisma.deuda.findMany({
-      where,
-      select: {
-        id: true,
-        tipo: true,
-        direccion: true,
-        acreedor: true,
-        monto_total: true,
-        monto_pendiente: true,
-        moneda: true,
-        fecha_inicio: true,
-        cantidad_cuotas: true,
-        monto_cuota: true,
-        saldada: true,
-        _count: { select: { pagos: true } },
-      },
-      orderBy: [{ saldada: 'asc' }, { fecha_inicio: 'desc' }],
-    });
+    const { data, error } = await q
+    assertOk(error)
+    return (data ?? []).map(shapeDebt)
   }
 
   async getDebtById(usuarioId: string, id: string) {
-    const debt = await prisma.deuda.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        usuario_id: true,
-        tipo: true,
-        direccion: true,
-        acreedor: true,
-        monto_total: true,
-        monto_pendiente: true,
-        moneda: true,
-        fecha_inicio: true,
-        cantidad_cuotas: true,
-        monto_cuota: true,
-        saldada: true,
-        pagos: {
-          select: {
-            id: true,
-            monto: true,
-            fecha: true,
-            movimiento: {
-              select: {
-                id: true,
-                descripcion: true,
-                fecha: true,
-                cuenta_origen: { select: { id: true, nombre: true } },
-              },
-            },
-          },
-          orderBy: { fecha: 'desc' },
-        },
-        _count: { select: { pagos: true } },
-      },
-    });
+    const { data, error } = await supabase
+      .from('deudas')
+      .select(`
+        id, tipo, direccion, acreedor, monto_total, monto_pendiente, moneda,
+        fecha_inicio, cantidad_cuotas, monto_cuota, saldada,
+        pagos:pagos_deuda!deuda_id(
+          id, monto, fecha,
+          movimiento:movimientos!movimiento_id(
+            id, descripcion, fecha,
+            cuenta_origen:cuentas!cuenta_id(id, nombre)
+          )
+        )
+      `)
+      .eq('id', id)
+      .eq('usuario_id', usuarioId)
+      .single()
 
-    if (!debt || debt.usuario_id !== usuarioId) {
-      throw new Error('Deuda no encontrada');
+    const debt = assertSuccess(data, error, 'Deuda no encontrada')
+
+    // Sort pagos by fecha desc (simulate Prisma orderBy)
+    if (Array.isArray(debt.pagos)) {
+      debt.pagos.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
     }
 
-    return debt;
+    return {
+      ...debt,
+      _count: { pagos: (debt.pagos as any[]).length },
+    }
   }
 
   async createDebt(usuarioId: string, data: CreateDebtInput) {
-    return prisma.deuda.create({
-      data: {
+    const { data: row, error } = await supabase
+      .from('deudas')
+      .insert({
         usuario_id: usuarioId,
         tipo: data.tipo,
         direccion: data.direccion,
@@ -84,213 +79,156 @@ export class DebtsService {
         fecha_inicio: data.fecha_inicio,
         cantidad_cuotas: data.cantidad_cuotas || null,
         monto_cuota: data.monto_cuota || null,
-      },
-      select: {
-        id: true,
-        tipo: true,
-        direccion: true,
-        acreedor: true,
-        monto_total: true,
-        monto_pendiente: true,
-        moneda: true,
-        fecha_inicio: true,
-        cantidad_cuotas: true,
-        monto_cuota: true,
-        saldada: true,
-        _count: { select: { pagos: true } },
-      },
-    });
+      })
+      .select(DEBT_LIST_SELECT)
+      .single()
+
+    return shapeDebt(assertSuccess(row, error))
   }
 
   async updateDebt(usuarioId: string, id: string, data: UpdateDebtInput) {
-    const debt = await prisma.deuda.findUnique({
-      where: { id },
-      select: { usuario_id: true, saldada: true },
-    });
+    const { data: existing, error: findErr } = await supabase
+      .from('deudas')
+      .select('id, saldada')
+      .eq('id', id)
+      .eq('usuario_id', usuarioId)
+      .single()
+    if (findErr || !existing) throw new Error('Deuda no encontrada')
 
-    if (!debt || debt.usuario_id !== usuarioId) {
-      throw new Error('Deuda no encontrada');
-    }
+    if (existing.saldada) throw new Error('No se puede modificar una deuda saldada')
 
-    if (debt.saldada) {
-      throw new Error('No se puede modificar una deuda saldada');
-    }
+    const { data: row, error } = await supabase
+      .from('deudas')
+      .update({
+        ...(data.acreedor !== undefined && { acreedor: data.acreedor }),
+        ...(data.cantidad_cuotas !== undefined && { cantidad_cuotas: data.cantidad_cuotas || null }),
+        ...(data.monto_cuota !== undefined && { monto_cuota: data.monto_cuota || null }),
+      })
+      .eq('id', id)
+      .select(DEBT_LIST_SELECT)
+      .single()
 
-    return prisma.deuda.update({
-      where: { id },
-      data: {
-        acreedor: data.acreedor,
-        cantidad_cuotas: data.cantidad_cuotas || null,
-        monto_cuota: data.monto_cuota || null,
-      },
-      select: {
-        id: true,
-        tipo: true,
-        direccion: true,
-        acreedor: true,
-        monto_total: true,
-        monto_pendiente: true,
-        moneda: true,
-        fecha_inicio: true,
-        cantidad_cuotas: true,
-        monto_cuota: true,
-        saldada: true,
-        _count: { select: { pagos: true } },
-      },
-    });
+    return shapeDebt(assertSuccess(row, error))
   }
 
   async deleteDebt(usuarioId: string, id: string) {
-    const debt = await prisma.deuda.findUnique({
-      where: { id },
-      select: {
-        usuario_id: true,
-        _count: { select: { pagos: true } },
-      },
-    });
+    const { data: debt, error: findErr } = await supabase
+      .from('deudas')
+      .select('id')
+      .eq('id', id)
+      .eq('usuario_id', usuarioId)
+      .single()
+    if (findErr || !debt) throw new Error('Deuda no encontrada')
 
-    if (!debt || debt.usuario_id !== usuarioId) {
-      throw new Error('Deuda no encontrada');
+    const { count, error: countErr } = await supabase
+      .from('pagos_deuda')
+      .select('id', { count: 'exact', head: true })
+      .eq('deuda_id', id)
+    assertOk(countErr)
+
+    if ((count ?? 0) > 0) {
+      throw new Error('No se puede eliminar una deuda con pagos registrados')
     }
 
-    if (debt._count.pagos > 0) {
-      throw new Error('No se puede eliminar una deuda con pagos registrados');
-    }
-
-    return prisma.deuda.delete({
-      where: { id },
-      select: {
-        id: true,
-      },
-    });
+    const { error } = await supabase.from('deudas').delete().eq('id', id)
+    assertOk(error)
+    return { id }
   }
 
   async payDebt(usuarioId: string, id: string, data: PayDebtInput) {
-    const debt = await prisma.deuda.findUnique({
-      where: { id },
-      select: {
-        usuario_id: true,
-        saldada: true,
-        direccion: true,
-        monto_pendiente: true,
-        acreedor: true,
-        moneda: true,
-      },
-    });
+    const { data: debt, error: debtErr } = await supabase
+      .from('deudas')
+      .select('usuario_id, saldada, direccion, monto_pendiente, acreedor, moneda')
+      .eq('id', id)
+      .eq('usuario_id', usuarioId)
+      .single()
+    if (debtErr || !debt) throw new Error('Deuda no encontrada')
+    if (debt.saldada) throw new Error('La deuda ya está saldada')
 
-    if (!debt || debt.usuario_id !== usuarioId) {
-      throw new Error('Deuda no encontrada');
-    }
-
-    if (debt.saldada) {
-      throw new Error('La deuda ya está saldada');
-    }
-
-    const montoPendiente = parseFloat(debt.monto_pendiente.toString());
-    const montoNum = parseFloat(data.monto.toString());
+    const montoPendiente = Number(debt.monto_pendiente)
+    const montoNum = Number(data.monto)
 
     if (montoNum > montoPendiente) {
-      throw new Error('El monto no puede exceder el pendiente');
+      throw new Error('El monto no puede exceder el pendiente')
     }
 
-    const cuenta = await prisma.cuenta.findUnique({
-      where: { id: data.cuenta_id },
-      select: { usuario_id: true, saldo_actual: true, activa: true },
-    });
+    const { data: cuenta, error: cuentaErr } = await supabase
+      .from('cuentas')
+      .select('usuario_id, saldo_actual, activa')
+      .eq('id', data.cuenta_id)
+      .eq('usuario_id', usuarioId)
+      .single()
+    if (cuentaErr || !cuenta) throw new Error('Cuenta no encontrada')
+    if (!cuenta.activa) throw new Error('La cuenta no está activa')
 
-    if (!cuenta || cuenta.usuario_id !== usuarioId) {
-      throw new Error('Cuenta no encontrada');
-    }
-
-    if (!cuenta.activa) {
-      throw new Error('La cuenta no está activa');
-    }
-
-    // POR_PAGAR: user is spending money (validate balance)
-    // POR_COBRAR: user is receiving money (no balance check needed)
     if (debt.direccion === 'POR_PAGAR') {
-      const saldoNum = parseFloat(cuenta.saldo_actual.toString());
+      const saldoNum = Number(cuenta.saldo_actual)
       if (saldoNum < montoNum) {
-        throw new Error('Saldo insuficiente en la cuenta');
+        throw new Error('Saldo insuficiente en la cuenta')
       }
     }
 
-    const nuevoMontoPendiente = parseFloat(
-      (montoPendiente - montoNum).toFixed(2)
-    );
-    const deudaSaldada = nuevoMontoPendiente <= 0;
+    const nuevoMontoPendiente = parseFloat((montoPendiente - montoNum).toFixed(2))
+    const deudaSaldada = nuevoMontoPendiente <= 0
+    const tipoMovimiento = debt.direccion === 'POR_PAGAR' ? 'PAGO_DEUDA' : 'COBRO_DEUDA'
+    const fechaPago = data.fecha ?? new Date()
 
-    return prisma.$transaction(async tx => {
-      const tipoMovimiento =
-        debt.direccion === 'POR_PAGAR' ? 'PAGO_DEUDA' : 'COBRO_DEUDA';
+    // 1. Insert movement
+    const { data: movimiento, error: movErr } = await supabase
+      .from('movimientos')
+      .insert({
+        usuario_id: usuarioId,
+        tipo: tipoMovimiento,
+        cuenta_id: data.cuenta_id,
+        deuda_id: id,
+        monto: montoNum,
+        moneda: debt.moneda,
+        descripcion:
+          data.descripcion ||
+          `${debt.direccion === 'POR_PAGAR' ? 'Pago' : 'Cobro'} deuda ${debt.acreedor}`,
+        fecha: fechaPago,
+        categoria: null,
+      })
+      .select('id')
+      .single()
+    assertSuccess(movimiento, movErr)
 
-      const movimiento = await tx.movimiento.create({
-        data: {
-          usuario_id: usuarioId,
-          tipo: tipoMovimiento,
-          cuenta_id: data.cuenta_id,
-          deuda_id: id,
-          monto: montoNum,
-          moneda: debt.moneda,
-          descripcion:
-            data.descripcion ||
-            `${debt.direccion === 'POR_PAGAR' ? 'Pago' : 'Cobro'} deuda ${debt.acreedor}`,
-          fecha: data.fecha || new Date(),
-          categoria: null,
-        },
-      });
+    // 2. Update account balance (debit or credit depending on direction)
+    const balanceDelta = debt.direccion === 'POR_PAGAR' ? -montoNum : montoNum
+    const { error: balErr } = await supabase.rpc('update_account_balance', {
+      p_account_id: data.cuenta_id,
+      p_delta: balanceDelta,
+    })
+    assertOk(balErr)
 
-      // POR_PAGAR: decrement account balance
-      // POR_COBRAR: increment account balance
-      await tx.cuenta.update({
-        where: { id: data.cuenta_id },
-        data: {
-          saldo_actual:
-            debt.direccion === 'POR_PAGAR'
-              ? { decrement: montoNum }
-              : { increment: montoNum },
-        },
-      });
+    // 3. Insert pago_deuda record
+    const { error: pagoErr } = await supabase.from('pagos_deuda').insert({
+      deuda_id: id,
+      movimiento_id: movimiento!.id,
+      monto: montoNum,
+      fecha: fechaPago,
+    })
+    assertOk(pagoErr)
 
-      await tx.pagoDeuda.create({
-        data: {
-          deuda_id: id,
-          movimiento_id: movimiento.id,
-          monto: montoNum,
-          fecha: data.fecha || new Date(),
-        },
-      });
+    // 4. Update deuda monto_pendiente and saldada flag
+    const { error: updateErr } = await supabase
+      .from('deudas')
+      .update({ monto_pendiente: nuevoMontoPendiente, saldada: deudaSaldada })
+      .eq('id', id)
+    assertOk(updateErr)
 
-      await tx.deuda.update({
-        where: { id },
-        data: {
-          monto_pendiente: nuevoMontoPendiente,
-          saldada: deudaSaldada,
-        },
-      });
+    // Return updated debt
+    const { data: updatedDebt, error: fetchErr } = await supabase
+      .from('deudas')
+      .select(DEBT_LIST_SELECT)
+      .eq('id', id)
+      .single()
 
-      return {
-        success: true,
-        deuda: await tx.deuda.findUnique({
-          where: { id },
-          select: {
-            id: true,
-            tipo: true,
-            direccion: true,
-            acreedor: true,
-            monto_total: true,
-            monto_pendiente: true,
-            moneda: true,
-            fecha_inicio: true,
-            cantidad_cuotas: true,
-            monto_cuota: true,
-            saldada: true,
-            _count: { select: { pagos: true } },
-          },
-        }),
-      };
-    });
+    return {
+      success: true,
+      deuda: shapeDebt(assertSuccess(updatedDebt, fetchErr)),
+    }
   }
 }
 
-export const debtsService = new DebtsService();
+export const debtsService = new DebtsService()
