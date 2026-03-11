@@ -22,6 +22,34 @@ const MOVEMENT_SELECT = `
 `
 
 export class MovementsService {
+  private async updateAccountBalance(accountId: string, delta: number): Promise<void> {
+    const { data, error: fetchErr } = await supabase
+      .from('cuentas')
+      .select('saldo_actual')
+      .eq('id', accountId)
+      .single()
+    if (fetchErr || !data) throw new Error('Cuenta no encontrada al actualizar saldo')
+    const { error } = await supabase
+      .from('cuentas')
+      .update({ saldo_actual: Number((data as any).saldo_actual) + delta })
+      .eq('id', accountId)
+    assertOk(error)
+  }
+
+  private async updateCardLimit(cardId: string, delta: number): Promise<void> {
+    const { data, error: fetchErr } = await supabase
+      .from('tarjetas')
+      .select('limite_comprometido')
+      .eq('id', cardId)
+      .single()
+    if (fetchErr || !data) throw new Error('Tarjeta no encontrada al actualizar límite')
+    const { error } = await supabase
+      .from('tarjetas')
+      .update({ limite_comprometido: Number((data as any).limite_comprometido) + delta })
+      .eq('id', cardId)
+    assertOk(error)
+  }
+
   /**
    * Get conversion rate between currencies
    */
@@ -157,11 +185,7 @@ export class MovementsService {
 
     // 2. Update account balance
     const delta = data.tipo === 'INGRESO' ? data.monto : -data.monto
-    const { error: balErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: cuentaId,
-      p_delta: delta,
-    })
-    assertOk(balErr)
+    await this.updateAccountBalance(cuentaId, delta)
 
     return newMovimiento
   }
@@ -206,11 +230,7 @@ export class MovementsService {
     assertSuccess(newMovimiento, movErr)
 
     // 2. Credit account balance
-    const { error: balErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: data.cuenta_id,
-      p_delta: montoEnMonedaCuenta,
-    })
-    assertOk(balErr)
+    await this.updateAccountBalance(data.cuenta_id, montoEnMonedaCuenta)
 
     return newMovimiento
   }
@@ -256,11 +276,7 @@ export class MovementsService {
     assertSuccess(newMovimiento, movErr)
 
     // 2. Debit account balance
-    const { error: balErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: data.cuenta_id,
-      p_delta: -montoEnMonedaCuenta,
-    })
-    assertOk(balErr)
+    await this.updateAccountBalance(data.cuenta_id, -montoEnMonedaCuenta)
 
     return newMovimiento
   }
@@ -339,17 +355,8 @@ export class MovementsService {
     assertOk(linkErr)
 
     // 4. Update both account balances
-    const { error: balOriginErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: data.cuenta_origen_id,
-      p_delta: -data.monto,
-    })
-    assertOk(balOriginErr)
-
-    const { error: balDestErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: data.cuenta_destino_id,
-      p_delta: montoDestino,
-    })
-    assertOk(balDestErr)
+    await this.updateAccountBalance(data.cuenta_origen_id, -data.monto)
+    await this.updateAccountBalance(data.cuenta_destino_id, montoDestino)
 
     return {
       movimientoSalida: movSalida,
@@ -438,17 +445,8 @@ export class MovementsService {
     assertOk(linkErr)
 
     // 4. Debit both accounts
-    const { error: balPayErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: data.cuenta_pago_id,
-      p_delta: -montoPagado,
-    })
-    assertOk(balPayErr)
-
-    const { error: balFondoErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: data.fondo_descuento_id,
-      p_delta: -montoSubsidio,
-    })
-    assertOk(balFondoErr)
+    await this.updateAccountBalance(data.cuenta_pago_id, -montoPagado)
+    await this.updateAccountBalance(data.fondo_descuento_id, -montoSubsidio)
 
     return { gastoMovimiento: gastoMov, subsidioMovimiento: subsidioMov }
   }
@@ -567,11 +565,7 @@ export class MovementsService {
     assertOk(cuotaErr)
 
     // 4. Increment card limite_comprometido
-    const { error: limitErr } = await supabase.rpc('update_card_limit', {
-      p_card_id: t.id,
-      p_delta: montoTotal,
-    })
-    assertOk(limitErr)
+    await this.updateCardLimit(t.id, montoTotal)
 
     return { movimiento, compra, cuotas_creadas: cantidadCuotas }
   }
@@ -619,11 +613,7 @@ export class MovementsService {
     assertSuccess(movimiento, movErr)
 
     // 2. Debit source account
-    const { error: balErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: data.cuenta_id,
-      p_delta: -data.monto,
-    })
-    assertOk(balErr)
+    await this.updateAccountBalance(data.cuenta_id, -data.monto)
 
     // 3. Fetch all compra IDs for this card, then unpaid cuotas FIFO
     const { data: compras, error: compraFetchErr } = await supabase
@@ -683,11 +673,7 @@ export class MovementsService {
         assertOk(compraUpdateErr)
 
         if (nuevosCuotasPagadas >= compra.cantidad_cuotas) {
-          const { error: limitErr } = await supabase.rpc('update_card_limit', {
-            p_card_id: t.id,
-            p_delta: -Number(compra.monto_total),
-          })
-          assertOk(limitErr)
+          await this.updateCardLimit(t.id, -Number(compra.monto_total))
         }
       }
 
@@ -819,11 +805,7 @@ export class MovementsService {
       }
 
       if (compra) {
-        const { error: limitErr } = await supabase.rpc('update_card_limit', {
-          p_card_id: (compra as any).tarjeta_id,
-          p_delta: -Number((compra as any).monto_total),
-        })
-        assertOk(limitErr)
+        await this.updateCardLimit((compra as any).tarjeta_id, -Number((compra as any).monto_total))
 
         // Delete compra — cascades to cuotas at DB level
         const { error: compraDelErr } = await supabase
@@ -863,16 +845,8 @@ export class MovementsService {
         const montoEntrada = Number(movEntrada.monto)
 
         // Reverse balances
-        const { error: e1 } = await supabase.rpc('update_account_balance', {
-          p_account_id: movSalida.cuenta_id,
-          p_delta: montoSalida,
-        })
-        assertOk(e1)
-        const { error: e2 } = await supabase.rpc('update_account_balance', {
-          p_account_id: movEntrada.cuenta_id,
-          p_delta: -montoEntrada,
-        })
-        assertOk(e2)
+        await this.updateAccountBalance(movSalida.cuenta_id, montoSalida)
+        await this.updateAccountBalance(movEntrada.cuenta_id, -montoEntrada)
 
         // Null both FK refs (Postgres RESTRICT prevents deletion otherwise)
         await supabase.from('movimientos').update({ movimiento_relacionado_id: null }).eq('id', mov.id)
@@ -887,11 +861,7 @@ export class MovementsService {
       } else {
         // Orphaned: reverse only this side
         const delta = esMovimientoSalida ? monto : -monto
-        const { error: balErr } = await supabase.rpc('update_account_balance', {
-          p_account_id: mov.cuenta_id,
-          p_delta: delta,
-        })
-        assertOk(balErr)
+        await this.updateAccountBalance(mov.cuenta_id, delta)
 
         if (mov.movimiento_relacionado_id) {
           await supabase
@@ -910,16 +880,8 @@ export class MovementsService {
     if (mov.tipo === 'GASTO_CON_DESCUENTO' || mov.tipo === 'SUBSIDIO') {
       if (relatedMovement) {
         // Restore both account balances
-        const { error: e1 } = await supabase.rpc('update_account_balance', {
-          p_account_id: mov.cuenta_id,
-          p_delta: monto,
-        })
-        assertOk(e1)
-        const { error: e2 } = await supabase.rpc('update_account_balance', {
-          p_account_id: relatedMovement.cuenta_id,
-          p_delta: Number(relatedMovement.monto),
-        })
-        assertOk(e2)
+        await this.updateAccountBalance(mov.cuenta_id, monto)
+        await this.updateAccountBalance(relatedMovement.cuenta_id, Number(relatedMovement.monto))
 
         // Null both FK refs
         await supabase.from('movimientos').update({ movimiento_relacionado_id: null }).eq('id', mov.id)
@@ -933,11 +895,7 @@ export class MovementsService {
         assertOk(delRelErr)
       } else {
         // Orphaned: restore only this account
-        const { error: balErr } = await supabase.rpc('update_account_balance', {
-          p_account_id: mov.cuenta_id,
-          p_delta: monto,
-        })
-        assertOk(balErr)
+        await this.updateAccountBalance(mov.cuenta_id, monto)
 
         if (mov.movimiento_relacionado_id) {
           await supabase
@@ -975,11 +933,7 @@ export class MovementsService {
     }
 
     if (delta !== 0) {
-      const { error: balErr } = await supabase.rpc('update_account_balance', {
-        p_account_id: mov.cuenta_id,
-        p_delta: delta,
-      })
-      assertOk(balErr)
+      await this.updateAccountBalance(mov.cuenta_id, delta)
     }
 
     const { error: delErr } = await supabase.from('movimientos').delete().eq('id', id)
