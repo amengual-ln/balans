@@ -43,6 +43,9 @@ const COMMON_CATEGORIES: Category[] = [
   { id: 'servicios', name: 'Servicios', icon: '💡' },
   { id: 'salud', name: 'Salud', icon: '⚕️' },
   { id: 'compras', name: 'Compras', icon: '🛍️' },
+  { id: 'ropa', name: 'Ropa', icon: '👕' },
+  { id: 'hogar', name: 'Hogar', icon: '🏠' },
+  { id: 'otros', name: 'Otros', icon: '📦' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -717,19 +720,19 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
               <label className="mb-3 block text-sm font-medium text-gray-700">
                 Categoría
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {COMMON_CATEGORIES.map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setCategoria(cat.id === categoria ? undefined : cat.id)}
-                    className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 py-3 transition-all ${
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full border-2 px-3 py-1.5 transition-all ${
                       categoria === cat.id
                         ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
-                    <span className="text-2xl">{cat.icon}</span>
-                    <span className="text-xs font-medium text-gray-700">{cat.name}</span>
+                    <span className="text-base">{cat.icon}</span>
+                    <span className="text-xs font-medium text-gray-700 whitespace-nowrap">{cat.name}</span>
                   </button>
                 ))}
               </div>
