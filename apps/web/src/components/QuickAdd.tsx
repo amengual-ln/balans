@@ -47,6 +47,13 @@ const COMMON_CATEGORIES: Category[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function formatAmountInput(raw: string): string {
+  if (!raw) return '';
+  const [intPart, decPart] = raw.split('.');
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decPart !== undefined ? `${formattedInt},${decPart}` : formattedInt;
+}
+
 function formatBalance(amount: string | number): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
   return new Intl.NumberFormat('es-AR', {
@@ -220,9 +227,10 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
-      setMonto(value);
+    // Strip thousand-separator dots, accept comma as decimal (es-AR)
+    const raw = e.target.value.replace(/\./g, '').replace(',', '.');
+    if (raw === '' || /^\d*\.?\d{0,2}$/.test(raw)) {
+      setMonto(raw);
     }
   };
 
@@ -366,9 +374,9 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
                   id="qa-amount"
                   type="text"
                   inputMode="decimal"
-                  value={monto}
+                  value={formatAmountInput(monto)}
                   onChange={handleAmountChange}
-                  placeholder="0.00"
+                  placeholder="0"
                   className="w-full rounded-lg border-2 border-gray-200 py-4 pl-10 pr-4 text-3xl font-semibold text-gray-800 transition-colors focus:border-blue-500 focus:outline-none"
                 />
               </div>

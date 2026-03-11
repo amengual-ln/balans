@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { supabase } from '../lib/supabase.js'
 import { assertSuccess, assertOk } from '../lib/db.js'
 import type {
@@ -513,9 +514,11 @@ export class MovementsService {
     const moneda = data.moneda ?? t.moneda
 
     // 1. Create GASTO_TARJETA movement
+    const movimientoId = randomUUID()
     const { data: movimiento, error: movErr } = await supabase
       .from('movimientos')
       .insert({
+        id: movimientoId,
         usuario_id: usuarioId,
         tipo: 'GASTO_TARJETA',
         cuenta_id: t.cuenta_id,
@@ -532,9 +535,11 @@ export class MovementsService {
     assertSuccess(movimiento, movErr)
 
     // 2. Create CompraEnCuotas record
+    const compraId = randomUUID()
     const { data: compra, error: compraErr } = await supabase
       .from('compras_en_cuotas')
       .insert({
+        id: compraId,
         usuario_id: usuarioId,
         tarjeta_id: t.id,
         movimiento_id: (movimiento as any).id,
@@ -551,6 +556,7 @@ export class MovementsService {
 
     // 3. Bulk insert cuotas
     const cuotasData = Array.from({ length: cantidadCuotas }, (_, i) => ({
+      id: randomUUID(),
       compra_id: (compra as any).id,
       numero_cuota: i + 1,
       monto: i === cantidadCuotas - 1 ? montoUltimaCuota : montoPorCuotaBase,
