@@ -286,10 +286,10 @@ export class SuscripcionesService {
     assertSuccess(movimiento, movErr)
 
     // 2. Debit account balance
-    const { error: balErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: cuentaId,
-      p_delta: -montoNum,
-    })
+    const { error: balErr } = await supabase
+      .from('cuentas')
+      .update({ saldo_actual: Number((cuenta as any).saldo_actual) - montoNum })
+      .eq('id', cuentaId)
     assertOk(balErr)
 
     // 3. Advance next payment date

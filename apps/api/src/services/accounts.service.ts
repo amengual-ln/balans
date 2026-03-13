@@ -257,11 +257,11 @@ export class AccountsService {
     })
     assertOk(movErr)
 
-    // 2. Update balance via RPC
-    const { error: rpcErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: id,
-      p_delta: diferencia,
-    })
+    // 2. Update balance directly
+    const { error: rpcErr } = await supabase
+      .from('cuentas')
+      .update({ saldo_actual: nuevoSaldo })
+      .eq('id', id)
     assertOk(rpcErr)
 
     // Return updated account
@@ -350,11 +350,11 @@ export class AccountsService {
     })
     assertOk(movErr)
 
-    // 2. Set balance directly to montoCarga via delta
-    const { error: rpcErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: id,
-      p_delta: diferencia,
-    })
+    // 2. Set balance directly to montoCarga
+    const { error: rpcErr } = await supabase
+      .from('cuentas')
+      .update({ saldo_actual: saldoAnterior + diferencia })
+      .eq('id', id)
     assertOk(rpcErr)
 
     // Return updated account

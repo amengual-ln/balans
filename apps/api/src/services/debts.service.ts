@@ -197,10 +197,10 @@ export class DebtsService {
 
     // 2. Update account balance (debit or credit depending on direction)
     const balanceDelta = debt.direccion === 'POR_PAGAR' ? -montoNum : montoNum
-    const { error: balErr } = await supabase.rpc('update_account_balance', {
-      p_account_id: data.cuenta_id,
-      p_delta: balanceDelta,
-    })
+    const { error: balErr } = await supabase
+      .from('cuentas')
+      .update({ saldo_actual: Number(cuenta.saldo_actual) + balanceDelta })
+      .eq('id', data.cuenta_id)
     assertOk(balErr)
 
     // 3. Insert pago_deuda record
