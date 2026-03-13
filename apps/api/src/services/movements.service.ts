@@ -170,6 +170,7 @@ export class MovementsService {
     const { data: newMovimiento, error: movErr } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: data.tipo,
         cuenta_id: cuentaId,
@@ -215,6 +216,7 @@ export class MovementsService {
     const { data: newMovimiento, error: movErr } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: 'INGRESO',
         cuenta_id: data.cuenta_id,
@@ -261,6 +263,7 @@ export class MovementsService {
     const { data: newMovimiento, error: movErr } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: 'GASTO',
         cuenta_id: data.cuenta_id,
@@ -315,6 +318,7 @@ export class MovementsService {
     const { data: movSalida, error: errSalida } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: 'TRANSFERENCIA',
         cuenta_id: data.cuenta_origen_id,
@@ -333,6 +337,7 @@ export class MovementsService {
     const { data: movEntrada, error: errEntrada } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: 'TRANSFERENCIA',
         cuenta_id: data.cuenta_destino_id,
@@ -404,6 +409,7 @@ export class MovementsService {
     const { data: gastoMov, error: errGasto } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: 'GASTO_CON_DESCUENTO',
         cuenta_id: data.cuenta_pago_id,
@@ -422,6 +428,7 @@ export class MovementsService {
     const { data: subsidioMov, error: errSubsidio } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: 'SUBSIDIO',
         cuenta_id: data.fondo_descuento_id,
@@ -598,6 +605,7 @@ export class MovementsService {
     const { data: movimiento, error: movErr } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: 'PAGO_TARJETA',
         cuenta_id: data.cuenta_id,

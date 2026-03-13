@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { supabase } from '../lib/supabase.js'
 import { assertSuccess, assertOk } from '../lib/db.js'
 import type { CreateDebtInput, UpdateDebtInput, PayDebtInput } from '../schemas/debts.schema.js'
@@ -177,6 +178,7 @@ export class DebtsService {
     const { data: movimiento, error: movErr } = await supabase
       .from('movimientos')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: tipoMovimiento,
         cuenta_id: data.cuenta_id,

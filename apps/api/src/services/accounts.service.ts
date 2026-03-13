@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { supabase } from '../lib/supabase.js'
 import { assertSuccess, assertOk } from '../lib/db.js'
 import type {
@@ -144,6 +145,7 @@ export class AccountsService {
     // 2. If there's an initial balance, create INGRESO_INICIAL movement + update balance via RPC
     if (data.saldo_inicial && data.saldo_inicial > 0) {
       const { error: movErr } = await supabase.from('movimientos').insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: 'INGRESO_INICIAL',
         cuenta_id: (cuenta as any).id,
@@ -244,6 +246,7 @@ export class AccountsService {
 
     // 1. Create AJUSTE movement
     const { error: movErr } = await supabase.from('movimientos').insert({
+      id: randomUUID(),
       usuario_id: usuarioId,
       tipo: 'AJUSTE',
       cuenta_id: id,
@@ -336,6 +339,7 @@ export class AccountsService {
 
     // 1. Create AJUSTE movement
     const { error: movErr } = await supabase.from('movimientos').insert({
+      id: randomUUID(),
       usuario_id: usuarioId,
       tipo: 'AJUSTE',
       cuenta_id: id,
