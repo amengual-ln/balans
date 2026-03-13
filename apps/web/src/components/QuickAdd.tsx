@@ -45,6 +45,7 @@ const COMMON_CATEGORIES: Category[] = [
   { id: 'compras', name: 'Compras', icon: '🛍️' },
   { id: 'ropa', name: 'Ropa', icon: '👕' },
   { id: 'hogar', name: 'Hogar', icon: '🏠' },
+  { id: 'musica_banda', name: 'Musica/Banda', icon: '🎸' },
   { id: 'otros', name: 'Otros', icon: '📦' },
 ];
 
