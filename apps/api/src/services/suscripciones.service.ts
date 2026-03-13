@@ -160,6 +160,7 @@ export class SuscripcionesService {
         fecha_fin: data.fecha_fin ?? null,
         activo: data.activo,
         categoria: data.categoria ?? null,
+        updated_at: new Date().toISOString(),
       })
       .select(SUSCRIPCION_SELECT)
       .single()
