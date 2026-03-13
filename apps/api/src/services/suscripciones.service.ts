@@ -146,6 +146,7 @@ export class SuscripcionesService {
     const { data: row, error } = await supabase
       .from('suscripciones')
       .insert({
+        id: crypto.randomUUID(),
         usuario_id: usuarioId,
         nombre: data.nombre,
         descripcion: data.descripcion ?? null,
