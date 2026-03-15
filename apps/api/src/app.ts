@@ -51,6 +51,7 @@ import movementsRouter from './routes/movements.js'
 import cardsRouter from './routes/cards.js'
 import debtsRouter from './routes/debts.js'
 import suscripcionesRouter from './routes/suscripciones.js'
+import inversionesRouter from './routes/inversiones.js'
 
 // Routes
 app.get('/api', (_req, res) => {
@@ -67,6 +68,7 @@ app.use('/api/movements', movementsRouter)
 app.use('/api/tarjetas', cardsRouter)
 app.use('/api/deudas', debtsRouter)
 app.use('/api/suscripciones', suscripcionesRouter)
+app.use('/api/inversiones', inversionesRouter)
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

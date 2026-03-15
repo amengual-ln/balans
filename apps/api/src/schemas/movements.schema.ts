@@ -149,16 +149,14 @@ export const getMovementsQuerySchema = z.object({
   categoria: z.string().optional(),
   limit: z
     .string()
+    .default("100")
     .transform((val) => parseInt(val, 10))
-    .pipe(z.number().int().positive().max(1000))
-    .optional()
-    .default(() => 100),
+    .pipe(z.number().int().positive().max(1000)),
   offset: z
     .string()
+    .default("0")
     .transform((val) => parseInt(val, 10))
-    .pipe(z.number().int().nonnegative())
-    .optional()
-    .default(() => 0),
+    .pipe(z.number().int().nonnegative()),
 });
 
 // Expense-with-discount schema

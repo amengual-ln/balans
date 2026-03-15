@@ -96,6 +96,7 @@ model Movimiento {
   tarjeta_id              String?
   deuda_id                String?
   suscripcion_id          String?
+  inversion_id            String?
   monto                   Decimal  @db.Decimal(15, 2)
   moneda                  String
   descripcion             String
@@ -113,6 +114,7 @@ model Movimiento {
   tarjeta           Tarjeta?    @relation(fields: [tarjeta_id], references: [id])
   deuda             Deuda?      @relation(fields: [deuda_id], references: [id])
   suscripcion       Suscripcion? @relation(fields: [suscripcion_id], references: [id])
+  inversion         Inversion?  @relation(fields: [inversion_id], references: [id])
   movimiento_relacionado Movimiento? @relation("MovimientoRelacionado", fields: [movimiento_relacionado_id], references: [id])
   movimientos_relacionados Movimiento[] @relation("MovimientoRelacionado")
   compras_en_cuotas CompraEnCuotas[]
@@ -210,22 +212,46 @@ model Inversion {
   id                String   @id @default(uuid())
   usuario_id        String
   tipo              TipoInversion
-  descripcion       String
+  descripcion       String?
   monto_invertido   Decimal  @db.Decimal(15, 2)
   monto_recuperado  Decimal  @default(0) @db.Decimal(15, 2)
   moneda            String
   fecha_inicio      DateTime
   cuenta_origen_id  String?
   estado            EstadoInversion @default(ACTIVA)
+  ticker            String
+  lote_numero       Int     @default(1)
+  cantidad          Decimal? @db.Decimal(15, 6)
+  precio_por_unidad Decimal? @db.Decimal(15, 6)
+  tipo_liquidez     TipoLiquidez    @default(INMEDIATA)
+  sector            String?
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
   // Relations
-  usuario        Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
-  cuenta_origen  Cuenta? @relation(fields: [cuenta_origen_id], references: [id])
+  usuario          Usuario         @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  cuenta_origen    Cuenta?         @relation(fields: [cuenta_origen_id], references: [id])
+  precios_mercado  PrecioMercado[]
+  movimientos      Movimiento[]
 
+  @@unique([usuario_id, ticker, lote_numero])
+  @@index([usuario_id, ticker])
   @@index([usuario_id])
   @@map("inversiones")
+}
+
+model PrecioMercado {
+  id            String   @id @default(uuid())
+  inversion_id  String
+  precio        Decimal  @db.Decimal(15, 6)
+  fecha         DateTime
+  created_at    DateTime @default(now())
+
+  // Relations
+  inversion Inversion @relation(fields: [inversion_id], references: [id], onDelete: Cascade)
+
+  @@index([inversion_id, fecha])
+  @@map("precios_mercado")
 }
 
 model Presupuesto {
@@ -314,6 +340,7 @@ enum TipoInversion {
   BONOS
   ACCIONES
   CRYPTO
+  FCI
   OTRO
 }
 
@@ -321,6 +348,12 @@ enum EstadoInversion {
   ACTIVA
   PARCIALMENTE_RECUPERADA
   FINALIZADA
+}
+
+enum TipoLiquidez {
+  INMEDIATA
+  DIAS
+  EXTERIOR
 }
 
 enum PeriodoPresupuesto {
