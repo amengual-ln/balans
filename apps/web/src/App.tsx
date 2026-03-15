@@ -4,6 +4,7 @@ import Accounts from './pages/Accounts';
 import Cards from './pages/Cards';
 import Debts from './pages/Debts';
 import Subscriptions from './pages/Subscriptions';
+import Investments from './pages/Investments';
 import BottomNav from './components/BottomNav';
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/cards" element={<Cards />} />
         <Route path="/debts" element={<Debts />} />
         <Route path="/subscriptions" element={<Subscriptions />} />
+        <Route path="/investments" element={<Investments />} />
       </Routes>
       <BottomNav />
     </BrowserRouter>

@@ -88,7 +88,8 @@ npm run test:e2e     # Run end-to-end tests
 - `Cuota`: Individual installments with payment tracking
 - `Deuda`: Debts with payment tracking
 - `Suscripcion`: Recurring services (rent, phone, internet, subscriptions)
-- `Inversion`: Investments tracking
+- `Inversion`: Investments tracking (stocks, bonds, crypto, fixed deposits)
+- `PrecioMercado`: Market price history for investments
 - `Presupuesto`: Budget categories (informative, non-blocking)
 - `ConfiguracionMoneda`: Currency exchange rate configuration
 
@@ -133,6 +134,43 @@ npm run test:e2e     # Run end-to-end tests
 - If `fecha_fin` is reached, subscription stops appearing in upcoming payments
 - Dashboard shows next 3 upcoming subscription payments for active subscriptions
 - Budget forecasting includes active subscriptions in monthly projections
+
+### Inversion (Investments) Data Model
+
+**Fields:**
+- `id`: UUID
+- `usuario_id`: UUID (foreign key)
+- `tipo`: Investment type (PLAZO_FIJO/BONOS/ACCIONES/CRYPTO/OTRO)
+- `tipo_liquidez`: Liquidity type (INMEDIATA/DIAS/EXTERIOR)
+- `ticker`: Ticker/symbol (required, unique per user with `@@unique([usuario_id, ticker])`) (e.g., "TSLA", "GGAL", "FIXED_2026", "BTC")
+- `descripcion`: Optional friendly name (e.g., "Tesla Stock", "USD Bond", "Plazo Fijo")
+- `sector`: Optional sector/industry classification (e.g., "Tecnología", "Financiero", "Energía")
+- `monto_invertido`: Initial investment amount (decimal)
+- `monto_recuperado`: Amount recovered so far (decimal, default 0)
+- `cantidad`: Optional number of units/shares owned (decimal)
+- `precio_por_unidad`: Optional price per unit (decimal)
+- `moneda`: Currency code
+- `fecha_inicio`: Date of investment
+- `cuenta_origen_id`: Broker account where investment is held (foreign key)
+- `estado`: Investment status (ACTIVA/PARCIALMENTE_RECUPERADA/FINALIZADA)
+- `created_at`: Timestamp
+- `updated_at`: Timestamp
+
+**PrecioMercado (Market Price History) Fields:**
+- `id`: UUID
+- `inversion_id`: UUID (foreign key to Inversion)
+- `precio`: Market price at date (decimal)
+- `fecha`: Date of price observation
+- `created_at`: Timestamp
+
+**Behavior:**
+- Upon creation, debit account balance by monto_invertido and create INVERSION movement
+- User can register market prices to track valuation over time
+- P&L calculation: (valor_mercado + monto_recuperado) - monto_invertido (shows 0% until first market price is recorded)
+- When selling shares: create RETORNO_INVERSION movement, credit destination account, update monto_recuperado and estado
+- Cannot delete investment with RETORNO_INVERSION movements recorded
+- Dashboard shows current P&L percentage and absolute amounts per investment, grouped by sector when applicable
+- Sector field enables future reporting: P&L per sector, allocation % per sector, etc.
 
 ### Critical Business Rules
 
@@ -187,6 +225,15 @@ Subscriptions track recurring services (rent, phone plans, internet, etc.):
 4. When paid, next payment date is automatically calculated based on frequency
 5. Inactive subscriptions don't appear in "due soon" dashboard section
 6. System respects end dates; subscriptions stop appearing after fecha_fin
+
+**RN-007: Investment Return Flow**
+When selling/liquidating investment shares:
+1. User specifies cantidad_vendida, precio_venta, and destination account
+2. Calculate total_retorno = cantidad_vendida × precio_venta
+3. Create RETORNO_INVERSION movement crediting destination account
+4. Update Inversion.monto_recuperado += total_retorno
+5. Update Inversion.cantidad -= cantidad_vendida (if applicable)
+6. Update Inversion.estado: if monto_recuperado >= monto_invertido then FINALIZADA else PARCIALMENTE_RECUPERADA
 
 ### Key Architectural Patterns
 
@@ -333,6 +380,16 @@ The most important UX feature - target: <5 seconds to log an expense
 - `DELETE /api/suscripciones/:id` - Remove subscription
 - `POST /api/suscripciones/:id/pagar` - Mark subscription as paid (manual payment recording)
 - `GET /api/suscripciones/proximos?dias=30` - Get subscriptions due within N days
+
+### Investments
+- `GET /api/inversiones` - List all investments with current market price
+- `POST /api/inversiones` - Create new investment
+- `GET /api/inversiones/:id`
+- `PUT /api/inversiones/:id` - Update investment (name, ticker, quantity, price per unit)
+- `DELETE /api/inversiones/:id` - Remove investment (blocked if returns recorded)
+- `POST /api/inversiones/:id/retorno` - Record investment return (sell shares, liquidate position)
+- `POST /api/inversiones/:id/precio` - Register market price observation
+- `GET /api/inversiones/:id/precio-history?limit=50` - Get price history for charting
 
 ### Balance & Reports
 - `GET /api/balance/mensual?periodo=YYYY-MM`
