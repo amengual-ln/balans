@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { supabase } from '../lib/supabase.js'
 import { assertSuccess, assertOk } from '../lib/db.js'
 import type { CreateCardInput, UpdateCardInput } from '../schemas/cards.schema.js'
@@ -9,11 +10,13 @@ export class CardsService {
   async getCards(usuarioId: string) {
     const { data, error } = await supabase
       .from('tarjetas')
-      .select(`
+      .select(
+        `
         *,
         cuenta_asociada:cuentas!cuenta_id(nombre, moneda, saldo_actual),
         compras_en_cuotas!tarjeta_id(count)
-      `)
+      `
+      )
       .eq('usuario_id', usuarioId)
       .order('activa', { ascending: false })
       .order('created_at', { ascending: true })
@@ -35,12 +38,14 @@ export class CardsService {
   async getCardById(usuarioId: string, id: string) {
     const { data, error } = await supabase
       .from('tarjetas')
-      .select(`
+      .select(
+        `
         *,
         cuenta_asociada:cuentas!cuenta_id(nombre, moneda, saldo_actual),
         compras_en_cuotas!tarjeta_id(count),
         movimientos!tarjeta_id(count)
-      `)
+      `
+      )
       .eq('id', id)
       .eq('usuario_id', usuarioId)
       .single()
@@ -74,6 +79,7 @@ export class CardsService {
     const { data: card, error } = await supabase
       .from('tarjetas')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         cuenta_id: data.cuenta_id,
         nombre: data.nombre,
@@ -82,6 +88,7 @@ export class CardsService {
         moneda: data.moneda ?? 'ARS',
         dia_cierre: data.dia_cierre,
         dia_vencimiento: data.dia_vencimiento,
+        updated_at: new Date().toISOString(),
       })
       .select('*')
       .single()
@@ -143,7 +150,7 @@ export class CardsService {
 
     if ((movCount ?? 0) > 0 || (compraCount ?? 0) > 0) {
       throw new Error(
-        'No se puede eliminar una tarjeta con movimientos asociados. Desactivala en su lugar.',
+        'No se puede eliminar una tarjeta con movimientos asociados. Desactivala en su lugar.'
       )
     }
 
@@ -177,10 +184,12 @@ export class CardsService {
 
     const { data: cuotas, error } = await supabase
       .from('cuotas')
-      .select(`
+      .select(
+        `
         *,
         compra:compras_en_cuotas!compra_id(descripcion, cantidad_cuotas, cuotas_pagadas, fecha_compra)
-      `)
+      `
+      )
       .eq('pagada', false)
       .in('compra_id', compraIds)
       .order('fecha_vencimiento', { ascending: true })

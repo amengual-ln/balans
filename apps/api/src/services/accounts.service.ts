@@ -41,6 +41,7 @@ export class AccountsService {
           case 'TRANSFERENCIA':
           case 'GASTO_CON_DESCUENTO':
           case 'SUBSIDIO':
+          case 'SUSCRIPCION':
             total -= monto
             break
         }
@@ -59,10 +60,12 @@ export class AccountsService {
   async getAccounts(usuarioId: string, filters?: { activa?: boolean; tipo?: string }) {
     let q = supabase
       .from('cuentas')
-      .select(`
+      .select(
+        `
         id, nombre, tipo, moneda, saldo_actual, recarga_mensual, activa, created_at, updated_at,
         movimientos!cuenta_id(count)
-      `)
+      `
+      )
       .eq('usuario_id', usuarioId)
       .order('activa', { ascending: false })
       .order('created_at', { ascending: false })
@@ -88,11 +91,13 @@ export class AccountsService {
   async getAccountById(id: string, usuarioId: string) {
     const { data, error } = await supabase
       .from('cuentas')
-      .select(`
+      .select(
+        `
         *,
         movimientos_origen:movimientos!cuenta_id(count),
         tarjetas!cuenta_id(count)
-      `)
+      `
+      )
       .eq('id', id)
       .eq('usuario_id', usuarioId)
       .single()
@@ -114,7 +119,7 @@ export class AccountsService {
 
     if (Math.abs(balanceCalculado - balanceAlmacenado) > 0.01) {
       console.warn(
-        `Balance mismatch for account ${id}: calculated=${balanceCalculado}, stored=${balanceAlmacenado}`,
+        `Balance mismatch for account ${id}: calculated=${balanceCalculado}, stored=${balanceAlmacenado}`
       )
     }
 
@@ -129,6 +134,7 @@ export class AccountsService {
     const { data: newCuenta, error: insertErr } = await supabase
       .from('cuentas')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         nombre: data.nombre,
         tipo: data.tipo,
@@ -136,6 +142,7 @@ export class AccountsService {
         saldo_actual: data.saldo_inicial || 0,
         activa: data.activa ?? true,
         ...(data.recarga_mensual !== undefined && { recarga_mensual: data.recarga_mensual }),
+        updated_at: new Date().toISOString(),
       })
       .select('*')
       .single()
@@ -209,7 +216,10 @@ export class AccountsService {
       { count: tarjetaCount, error: tarjetaErr },
     ] = await Promise.all([
       supabase.from('movimientos').select('id', { count: 'exact', head: true }).eq('cuenta_id', id),
-      supabase.from('movimientos').select('id', { count: 'exact', head: true }).eq('cuenta_destino_id', id),
+      supabase
+        .from('movimientos')
+        .select('id', { count: 'exact', head: true })
+        .eq('cuenta_destino_id', id),
       supabase.from('tarjetas').select('id', { count: 'exact', head: true }).eq('cuenta_id', id),
     ])
     assertOk(movErr)
@@ -218,7 +228,7 @@ export class AccountsService {
 
     if ((movCount ?? 0) > 0 || (movDestinoCount ?? 0) > 0 || (tarjetaCount ?? 0) > 0) {
       throw new Error(
-        'No se puede eliminar una cuenta con movimientos o tarjetas asociadas. Desactívala en su lugar.',
+        'No se puede eliminar una cuenta con movimientos o tarjetas asociadas. Desactívala en su lugar.'
       )
     }
 
@@ -238,7 +248,8 @@ export class AccountsService {
       .eq('usuario_id', usuarioId)
       .single()
     if (findErr || !cuenta) throw new Error('Cuenta no encontrada')
-    if (!(cuenta as any).activa) throw new Error('No se puede ajustar el saldo de una cuenta inactiva')
+    if (!(cuenta as any).activa)
+      throw new Error('No se puede ajustar el saldo de una cuenta inactiva')
 
     const saldoActual = Number((cuenta as any).saldo_actual)
     const nuevoSaldo = data.nuevo_saldo
@@ -329,7 +340,7 @@ export class AccountsService {
     const montoCarga = monto ?? (c.recarga_mensual ? Number(c.recarga_mensual) : null)
     if (!montoCarga || montoCarga <= 0) {
       throw new Error(
-        'El monto debe ser mayor a 0. Configure recarga_mensual en la cuenta o proporcione un monto.',
+        'El monto debe ser mayor a 0. Configure recarga_mensual en la cuenta o proporcione un monto.'
       )
     }
 

@@ -38,7 +38,8 @@ export class DebtsService {
   async getDebtById(usuarioId: string, id: string) {
     const { data, error } = await supabase
       .from('deudas')
-      .select(`
+      .select(
+        `
         id, tipo, direccion, acreedor, monto_total, monto_pendiente, moneda,
         fecha_inicio, cantidad_cuotas, monto_cuota, saldada,
         pagos:pagos_deuda!deuda_id(
@@ -48,7 +49,8 @@ export class DebtsService {
             cuenta_origen:cuentas!cuenta_id(id, nombre)
           )
         )
-      `)
+      `
+      )
       .eq('id', id)
       .eq('usuario_id', usuarioId)
       .single()
@@ -70,6 +72,7 @@ export class DebtsService {
     const { data: row, error } = await supabase
       .from('deudas')
       .insert({
+        id: randomUUID(),
         usuario_id: usuarioId,
         tipo: data.tipo,
         direccion: data.direccion,
@@ -80,6 +83,7 @@ export class DebtsService {
         fecha_inicio: data.fecha_inicio,
         cantidad_cuotas: data.cantidad_cuotas || null,
         monto_cuota: data.monto_cuota || null,
+        updated_at: new Date().toISOString(),
       })
       .select(DEBT_LIST_SELECT)
       .single()
@@ -102,7 +106,9 @@ export class DebtsService {
       .from('deudas')
       .update({
         ...(data.acreedor !== undefined && { acreedor: data.acreedor }),
-        ...(data.cantidad_cuotas !== undefined && { cantidad_cuotas: data.cantidad_cuotas || null }),
+        ...(data.cantidad_cuotas !== undefined && {
+          cantidad_cuotas: data.cantidad_cuotas || null,
+        }),
         ...(data.monto_cuota !== undefined && { monto_cuota: data.monto_cuota || null }),
       })
       .eq('id', id)
@@ -205,6 +211,7 @@ export class DebtsService {
 
     // 3. Insert pago_deuda record
     const { error: pagoErr } = await supabase.from('pagos_deuda').insert({
+      id: randomUUID(),
       deuda_id: id,
       movimiento_id: movimiento!.id,
       monto: montoNum,

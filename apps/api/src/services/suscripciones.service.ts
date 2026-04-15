@@ -9,11 +9,7 @@ import type {
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
-function calculateProximaFecha(
-  fechaInicio: Date,
-  frecuencia: string,
-  diaPago: number,
-): Date {
+function calculateProximaFecha(fechaInicio: Date, frecuencia: string, diaPago: number): Date {
   const start = new Date(fechaInicio)
   start.setHours(0, 0, 0, 0)
 
@@ -21,11 +17,7 @@ function calculateProximaFecha(
     case 'MENSUAL':
     case 'TRIMESTRAL':
     case 'ANUAL': {
-      const maxDayCurrentMonth = new Date(
-        start.getFullYear(),
-        start.getMonth() + 1,
-        0,
-      ).getDate()
+      const maxDayCurrentMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate()
       const candidateDay = Math.min(diaPago, maxDayCurrentMonth)
       const candidate = new Date(start.getFullYear(), start.getMonth(), candidateDay)
       if (candidate >= start) {
@@ -35,7 +27,7 @@ function calculateProximaFecha(
       const maxDayNextMonth = new Date(
         nextMonth.getFullYear(),
         nextMonth.getMonth() + 1,
-        0,
+        0
       ).getDate()
       nextMonth.setDate(Math.min(diaPago, maxDayNextMonth))
       return nextMonth
@@ -56,11 +48,7 @@ function calculateProximaFecha(
   }
 }
 
-function advanceProximaFecha(
-  current: Date,
-  frecuencia: string,
-  diaPago: number,
-): Date {
+function advanceProximaFecha(current: Date, frecuencia: string, diaPago: number): Date {
   const date = new Date(current)
   date.setHours(0, 0, 0, 0)
 
@@ -168,11 +156,7 @@ export class SuscripcionesService {
     return shapeSuscripcion(assertSuccess(row, error))
   }
 
-  async updateSuscripcion(
-    usuarioId: string,
-    id: string,
-    data: UpdateSuscripcionInput,
-  ) {
+  async updateSuscripcion(usuarioId: string, id: string, data: UpdateSuscripcionInput) {
     // Verify ownership
     const { error: checkErr } = await supabase
       .from('suscripciones')
@@ -228,15 +212,11 @@ export class SuscripcionesService {
     return { id }
   }
 
-  async pagarSuscripcion(
-    usuarioId: string,
-    id: string,
-    data: PagarSuscripcionInput,
-  ) {
+  async pagarSuscripcion(usuarioId: string, id: string, data: PagarSuscripcionInput) {
     const { data: sub, error: subErr } = await supabase
       .from('suscripciones')
       .select(
-        'usuario_id, nombre, monto, moneda, activo, fecha_fin, frecuencia, dia_pago, proxima_fecha_pago, cuenta_id',
+        'usuario_id, nombre, monto, moneda, activo, fecha_fin, frecuencia, dia_pago, proxima_fecha_pago, cuenta_id'
       )
       .eq('id', id)
       .eq('usuario_id', usuarioId)
@@ -263,7 +243,7 @@ export class SuscripcionesService {
     const nuevaProximaFecha = advanceProximaFecha(
       new Date(sub.proxima_fecha_pago),
       sub.frecuencia,
-      sub.dia_pago,
+      sub.dia_pago
     )
 
     // 1. Insert movement
@@ -286,11 +266,24 @@ export class SuscripcionesService {
     assertSuccess(movimiento, movErr)
 
     // 2. Debit account balance
+    const saldoActual = Number((cuenta as any).saldo_actual)
+    const nuevoSaldo = saldoActual - montoNum
+
+    console.log(
+      `[SuscripcionPayment] cuentaId=${cuentaId}, saldoActual=${saldoActual}, montoNum=${montoNum}, nuevoSaldo=${nuevoSaldo}`
+    )
+
     const { error: balErr } = await supabase
       .from('cuentas')
-      .update({ saldo_actual: Number((cuenta as any).saldo_actual) - montoNum })
+      .update({ saldo_actual: nuevoSaldo })
       .eq('id', cuentaId)
-    assertOk(balErr)
+
+    if (balErr) {
+      console.error('[SuscripcionPayment] Balance update failed:', balErr)
+      throw new Error(`Error al actualizar saldo: ${balErr.message}`)
+    }
+
+    console.log(`[SuscripcionPayment] Balance updated successfully`)
 
     // 3. Advance next payment date
     const { data: updatedSub, error: subUpdateErr } = await supabase
