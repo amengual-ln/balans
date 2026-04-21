@@ -1,27 +1,27 @@
-import { useState, useEffect } from 'react';
-import { Plus } from 'lucide-react';
-import { useInversiones, Inversion, TickerPosition } from '@/hooks/useInversiones';
-import { useAccounts } from '@/hooks/useAccounts';
-import { useSWRConfig } from 'swr';
-import TickerPositionCard from '@/components/TickerPositionCard';
-import InversionForm, { InversionFormData } from '@/components/InversionForm';
-import RetornoInversionModal from '@/components/RetornoInversionModal';
-import PrecioMercadoModal from '@/components/PrecioMercadoModal';
-import { apiPost, apiPut, apiDelete } from '@/hooks/useAPI';
+import { useState, useEffect } from 'react'
+import { Plus } from 'lucide-react'
+import { useInversiones, Inversion, TickerPosition } from '@/hooks/useInversiones'
+import { useAccounts } from '@/hooks/useAccounts'
+import { useSWRConfig } from 'swr'
+import TickerPositionCard from '@/components/TickerPositionCard'
+import InversionForm, { InversionFormData } from '@/components/InversionForm'
+import RetornoInversionModal from '@/components/RetornoInversionModal'
+import PrecioMercadoModal from '@/components/PrecioMercadoModal'
+import { apiPost, apiPut, apiDelete } from '@/hooks/useAPI'
 
 // ─── Toast ─────────────────────────────────────────────────────────────────────
 
 interface ToastProps {
-  message: string;
-  type: 'success' | 'error';
-  onClose: () => void;
+  message: string
+  type: 'success' | 'error'
+  onClose: () => void
 }
 
 function Toast({ message, type, onClose }: ToastProps) {
   useEffect(() => {
-    const t = setTimeout(onClose, 3000);
-    return () => clearTimeout(t);
-  }, [onClose]);
+    const t = setTimeout(onClose, 3000)
+    return () => clearTimeout(t)
+  }, [onClose])
 
   return (
     <div
@@ -31,7 +31,7 @@ function Toast({ message, type, onClose }: ToastProps) {
     >
       {message}
     </div>
-  );
+  )
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ function SkeletonCard() {
       <div className="mb-4 h-7 w-28 rounded bg-gray-200" />
       <div className="h-9 w-full rounded-lg bg-gray-200" />
     </div>
-  );
+  )
 }
 
 // ─── Filter Pills ──────────────────────────────────────────────────────────────
@@ -56,7 +56,7 @@ const TIPO_LABELS: Record<string, string> = {
   CRYPTO: 'Crypto',
   FCI: 'Fondo Común',
   OTRO: 'Otra',
-};
+}
 
 const TIPO_OPTIONS = [
   { label: 'Todos', value: 'TODOS' },
@@ -66,24 +66,24 @@ const TIPO_OPTIONS = [
   { label: TIPO_LABELS.CRYPTO, value: 'CRYPTO' },
   { label: TIPO_LABELS.FCI, value: 'FCI' },
   { label: TIPO_LABELS.OTRO, value: 'OTRO' },
-];
+]
 
 // ─── Totals Banner ────────────────────────────────────────────────────────────
 
 function TotalsBanner({ positions }: { positions: TickerPosition[] }) {
-  const byMoneda = new Map<string, { invertido: number; valor: number; recuperado: number }>();
+  const byMoneda = new Map<string, { invertido: number; valor: number; recuperado: number }>()
 
   for (const pos of positions) {
-    const precioActual = pos.precio_mercado_actual ?? 0;
-    const valorMercado = precioActual && pos.cantidad_total ? precioActual * pos.cantidad_total : 0;
+    const precioActual = pos.precio_mercado_actual ?? 0
+    const valorMercado = precioActual && pos.cantidad_total ? precioActual * pos.cantidad_total : 0
 
-    const key = pos.moneda;
-    const current = byMoneda.get(key) ?? { invertido: 0, valor: 0, recuperado: 0 };
+    const key = pos.moneda
+    const current = byMoneda.get(key) ?? { invertido: 0, valor: 0, recuperado: 0 }
     byMoneda.set(key, {
       invertido: current.invertido + pos.total_invertido,
       valor: current.valor + valorMercado,
       recuperado: current.recuperado + pos.total_recuperado,
-    });
+    })
   }
 
   return (
@@ -96,9 +96,9 @@ function TotalsBanner({ positions }: { positions: TickerPosition[] }) {
       ) : (
         <div className="space-y-3">
           {Array.from(byMoneda.entries()).map(([moneda, { invertido, valor, recuperado }]) => {
-            const total = valor + recuperado;
-            const pnl = total - invertido;
-            const pnlPercent = invertido > 0 ? (pnl / invertido) * 100 : 0;
+            const total = valor + recuperado
+            const pnl = total - invertido
+            const pnlPercent = invertido > 0 ? (pnl / invertido) * 100 : 0
 
             return (
               <div key={moneda} className="space-y-1.5">
@@ -111,25 +111,26 @@ function TotalsBanner({ positions }: { positions: TickerPosition[] }) {
                 <div className="flex items-center justify-between text-xs text-text-secondary">
                   <span>Valor actual + Recuperado:</span>
                   <span className={pnl >= 0 ? 'text-positive' : 'text-negative'}>
-                    {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ({pnlPercent.toFixed(1)}%)
+                    {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })} (
+                    {pnlPercent.toFixed(1)}%)
                   </span>
                 </div>
               </div>
-            );
+            )
           })}
         </div>
       )}
     </div>
-  );
+  )
 }
 
 // ─── Delete Confirmation ──────────────────────────────────────────────────────
 
 interface DeleteConfirmProps {
-  lote: Inversion;
-  onConfirm: () => void;
-  onCancel: () => void;
-  deleting: boolean;
+  lote: Inversion
+  onConfirm: () => void
+  onCancel: () => void
+  deleting: boolean
 }
 
 function DeleteConfirm({ lote, onConfirm, onCancel, deleting }: DeleteConfirmProps) {
@@ -138,7 +139,8 @@ function DeleteConfirm({ lote, onConfirm, onCancel, deleting }: DeleteConfirmPro
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <h3 className="mb-2 text-lg font-bold text-text-primary">Eliminar lote</h3>
         <p className="mb-6 text-sm text-text-secondary">
-          ¿Eliminar <strong>Lote #{lote.lote_numero}</strong> de <strong>{lote.ticker}</strong>? Esta acción no se puede deshacer.
+          ¿Eliminar <strong>Lote #{lote.lote_numero}</strong> de <strong>{lote.ticker}</strong>?
+          Esta acción no se puede deshacer.
         </p>
         <div className="flex gap-3">
           <button
@@ -157,58 +159,63 @@ function DeleteConfirm({ lote, onConfirm, onCancel, deleting }: DeleteConfirmPro
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Investments() {
-  const { inversiones: positions, isLoading, mutate } = useInversiones();
-  const { accounts } = useAccounts();
-  const { mutate: globalMutate } = useSWRConfig();
+  const { inversiones: positions, isLoading, mutate } = useInversiones()
+  const { accounts } = useAccounts()
+  const { mutate: globalMutate } = useSWRConfig()
 
-  const [tipoFilter, setTipoFilter] = useState<string>('TODOS');
-  const [showForm, setShowForm] = useState(false);
-  const [editLote, setEditLote] = useState<Inversion | null>(null);
-  const [retornoLote, setRetornoLote] = useState<Inversion | null>(null);
-  const [precioTicker, setPrecioTicker] = useState<TickerPosition | null>(null);
-  const [deleteLote, setDeleteLote] = useState<Inversion | null>(null);
-  const [addLoteTicker, setAddLoteTicker] = useState<TickerPosition | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [tipoFilter, setTipoFilter] = useState<string>('TODOS')
+  const [showForm, setShowForm] = useState(false)
+  const [editLote, setEditLote] = useState<Inversion | null>(null)
+  const [retornoLote, setRetornoLote] = useState<Inversion | null>(null)
+  const [precioTicker, setPrecioTicker] = useState<TickerPosition | null>(null)
+  const [deleteLote, setDeleteLote] = useState<Inversion | null>(null)
+  const [addLoteTicker, setAddLoteTicker] = useState<TickerPosition | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
-  const filteredPositions = tipoFilter === 'TODOS' ? positions : positions.filter(p => p.tipo === tipoFilter);
+  const filteredPositions =
+    tipoFilter === 'TODOS' ? positions : positions.filter((p) => p.tipo === tipoFilter)
 
-  const availableTipos = new Set(positions.map(p => p.tipo));
-  const visibleTipoOptions = TIPO_OPTIONS.filter(opt => opt.value === 'TODOS' || availableTipos.has(opt.value as any));
+  const availableTipos = new Set(positions.map((p) => p.tipo))
+  const visibleTipoOptions = TIPO_OPTIONS.filter(
+    (opt) => opt.value === 'TODOS' || availableTipos.has(opt.value as any)
+  )
 
   const handleCreate = async (data: InversionFormData) => {
-    setSubmitting(true);
+    setSubmitting(true)
     try {
       await apiPost('/api/inversiones', {
         ...data,
         fecha_inicio: new Date(data.fecha_inicio).toISOString(),
-      });
-      mutate();
-      globalMutate((key) =>
-        typeof key === 'string' && (key.startsWith('/api/cuentas') || key.startsWith('/api/movements')),
-      );
-      setShowForm(false);
-      setToast({ message: 'Inversión creada exitosamente', type: 'success' });
+      })
+      mutate()
+      globalMutate(
+        (key) =>
+          typeof key === 'string' &&
+          (key.startsWith('/api/cuentas') || key.startsWith('/api/movements'))
+      )
+      setShowForm(false)
+      setToast({ message: 'Inversión creada exitosamente', type: 'success' })
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Error al crear inversión',
         type: 'error',
-      });
+      })
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
-  };
+  }
 
   const handleUpdate = async (data: InversionFormData) => {
-    if (!editLote) return;
-    setSubmitting(true);
+    if (!editLote) return
+    setSubmitting(true)
     try {
       await apiPut(`/api/inversiones/${editLote.id}`, {
         nombre: data.nombre,
@@ -218,73 +225,75 @@ export default function Investments() {
         tipo_liquidez: data.tipo_liquidez,
         cantidad: data.cantidad,
         precio_por_unidad: data.precio_por_unidad,
-      });
-      mutate();
-      setEditLote(null);
-      setToast({ message: 'Inversión actualizada', type: 'success' });
+      })
+      mutate()
+      setEditLote(null)
+      setToast({ message: 'Inversión actualizada', type: 'success' })
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Error al actualizar inversión',
         type: 'error',
-      });
+      })
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
-  };
+  }
 
   const handleDelete = async () => {
-    if (!deleteLote) return;
-    setDeleting(true);
+    if (!deleteLote) return
+    setDeleting(true)
     try {
-      await apiDelete(`/api/inversiones/${deleteLote.id}`);
-      mutate();
-      globalMutate((key) =>
-        typeof key === 'string' && key.startsWith('/api/cuentas'),
-      );
-      setDeleteLote(null);
-      setToast({ message: 'Lote eliminado', type: 'success' });
+      await apiDelete(`/api/inversiones/${deleteLote.id}`)
+      mutate()
+      globalMutate((key) => typeof key === 'string' && key.startsWith('/api/cuentas'))
+      setDeleteLote(null)
+      setToast({ message: 'Lote eliminado', type: 'success' })
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Error al eliminar lote',
         type: 'error',
-      });
-      setDeleteLote(null);
+      })
+      setDeleteLote(null)
     } finally {
-      setDeleting(false);
+      setDeleting(false)
     }
-  };
+  }
 
   const handleRetornoSuccess = () => {
-    mutate();
-    globalMutate((key) =>
-      typeof key === 'string' &&
-      (key.startsWith('/api/movements') || key.startsWith('/api/cuentas')),
-    );
-    setRetornoLote(null);
-    setToast({ message: 'Retorno registrado exitosamente', type: 'success' });
-  };
+    mutate()
+    globalMutate(
+      (key) =>
+        typeof key === 'string' &&
+        (key.startsWith('/api/movements') || key.startsWith('/api/cuentas'))
+    )
+    setRetornoLote(null)
+    setToast({ message: 'Retorno registrado exitosamente', type: 'success' })
+  }
 
   const handlePrecioSuccess = () => {
-    mutate();
-    setPrecioTicker(null);
-    setToast({ message: 'Precio registrado exitosamente', type: 'success' });
-  };
+    mutate()
+    globalMutate((key) => typeof key === 'string' && key.startsWith('/api/inversiones'))
+    setPrecioTicker(null)
+    setToast({ message: 'Precio registrado exitosamente', type: 'success' })
+  }
 
   const handleAddLote = (pos: TickerPosition) => {
-    setAddLoteTicker(pos);
-    setShowForm(true);
-  };
+    setAddLoteTicker(pos)
+    setShowForm(true)
+  }
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white pb-24">
         <div className="mx-auto max-w-2xl px-4 pt-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+            {[1, 2, 3].map((i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -328,7 +337,9 @@ export default function Investments() {
         {filteredPositions.length === 0 ? (
           <div className="rounded-xl border border-border bg-surface p-8 text-center">
             <p className="text-sm text-text-secondary">
-              {positions.length === 0 ? 'No hay inversiones registradas' : 'No hay inversiones con este tipo'}
+              {positions.length === 0
+                ? 'No hay inversiones registradas'
+                : 'No hay inversiones con este tipo'}
             </p>
           </div>
         ) : (
@@ -371,8 +382,8 @@ export default function Investments() {
             cuenta_id: addLoteTicker.lotes[0]?.cuenta_origen?.id ?? '',
           }}
           onClose={() => {
-            setShowForm(false);
-            setAddLoteTicker(null);
+            setShowForm(false)
+            setAddLoteTicker(null)
           }}
           onSubmit={handleCreate}
           submitting={submitting}
@@ -419,13 +430,9 @@ export default function Investments() {
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-24 right-4 z-40">
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onClose={() => setToast(null)}
-          />
+          <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
         </div>
       )}
     </div>
-  );
+  )
 }

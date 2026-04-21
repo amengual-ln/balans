@@ -1,13 +1,6 @@
-import { useState } from 'react';
-import {
-  Pencil,
-  Trash2,
-  TrendingUp,
-  BarChart3,
-  ChevronDown,
-  Plus,
-} from 'lucide-react';
-import { TickerPosition, Inversion, TipoLiquidez } from '@/hooks/useInversiones';
+import { useState } from 'react'
+import { Pencil, Trash2, TrendingUp, BarChart3, ChevronDown, Plus } from 'lucide-react'
+import { TickerPosition, Inversion, TipoLiquidez } from '@/hooks/useInversiones'
 
 const TIPO_LABELS: Record<string, string> = {
   PLAZO_FIJO: 'Plazo Fijo',
@@ -16,21 +9,21 @@ const TIPO_LABELS: Record<string, string> = {
   CRYPTO: 'Crypto',
   FCI: 'Fondo Común',
   OTRO: 'Otra',
-};
+}
 
 const LIQUIDEZ_LABELS: Record<TipoLiquidez, string> = {
   INMEDIATA: 'Inmediata',
   DIAS: 'Días',
   EXTERIOR: 'Exterior',
-};
+}
 
 interface TickerPositionCardProps {
-  position: TickerPosition;
-  onAddLote: (pos: TickerPosition) => void;
-  onEditLote: (lote: Inversion) => void;
-  onDeleteLote: (lote: Inversion) => void;
-  onRetorno: (lote: Inversion) => void;
-  onPrecio: (pos: TickerPosition) => void;
+  position: TickerPosition
+  onAddLote: (pos: TickerPosition) => void
+  onEditLote: (lote: Inversion) => void
+  onDeleteLote: (lote: Inversion) => void
+  onRetorno: (lote: Inversion) => void
+  onPrecio: (pos: TickerPosition) => void
 }
 
 export default function TickerPositionCard({
@@ -41,27 +34,28 @@ export default function TickerPositionCard({
   onRetorno,
   onPrecio,
 }: TickerPositionCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false)
 
-  const totalInvertido = pos.total_invertido;
-  const totalRecuperado = pos.total_recuperado;
-  const precioActual = pos.precio_mercado_actual ?? null;
-  const cantidadTotal = pos.cantidad_total ?? 0;
+  const totalInvertido = pos.total_invertido
+  const totalRecuperado = pos.total_recuperado
+  const precioActual = pos.precio_mercado_actual ?? null
+  const cantidadTotal = pos.cantidad_total ?? 0
 
-  let valorMercado = 0;
+  let valorMercado = 0
   if (precioActual && cantidadTotal) {
-    valorMercado = precioActual * cantidadTotal;
+    valorMercado = precioActual * cantidadTotal
   }
 
-  const hasPriceData = precioActual !== null || totalRecuperado > 0;
-  let pnl = 0;
-  let pnlPercent = 0;
-  let isProfit = true;
+  const posicionActual = valorMercado + totalRecuperado
+  const hasPriceData = precioActual !== null || totalRecuperado > 0
+  let pnl = 0
+  let pnlPercent = 0
+  let isProfit = true
 
   if (hasPriceData) {
-    pnl = totalRecuperado + valorMercado - totalInvertido;
-    pnlPercent = totalInvertido > 0 ? (pnl / totalInvertido) * 100 : 0;
-    isProfit = pnl >= 0;
+    pnl = posicionActual - totalInvertido
+    pnlPercent = totalInvertido > 0 ? (pnl / totalInvertido) * 100 : 0
+    isProfit = pnl >= 0
   }
 
   return (
@@ -98,42 +92,56 @@ export default function TickerPositionCard({
       </div>
 
       {/* Amounts */}
-      <div className="mb-4 space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-text-secondary">Invertido:</span>
-          <span className="font-medium text-text-primary">
+      <div className="mb-4 space-y-1.5 text-xs">
+        <div className="flex justify-between text-text-secondary">
+          <span>Invertido:</span>
+          <span>
             {pos.moneda} {totalInvertido.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
           </span>
         </div>
         {precioActual && (
-          <div className="flex justify-between">
-            <span className="text-text-secondary">Precio actual:</span>
-            <span className="font-medium text-text-primary">
+          <div className="flex justify-between text-text-secondary">
+            <span>Precio actual:</span>
+            <span>
               {pos.moneda} {precioActual.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
             </span>
           </div>
         )}
         {totalRecuperado > 0 && (
-          <div className="flex justify-between">
-            <span className="text-text-secondary">Recuperado:</span>
-            <span className="font-medium text-positive">
+          <div className="flex justify-between text-text-secondary">
+            <span>Recuperado:</span>
+            <span className="text-positive">
               + {pos.moneda} {totalRecuperado.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        )}
+        {hasPriceData && (
+          <div className="flex justify-between pt-1.5 text-sm font-semibold">
+            <span className="text-text-primary">Posición actual:</span>
+            <span className="text-text-primary">
+              {pos.moneda} {posicionActual.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
             </span>
           </div>
         )}
       </div>
 
       {/* P&L */}
-      <div className="mb-4 flex justify-between text-sm">
-        <span className={`${hasPriceData ? (isProfit ? 'text-positive' : 'text-negative') : 'text-text-secondary'}`}>
-          P&L:
+      <div className="mb-4 flex justify-between text-lg font-bold">
+        <span
+          className={
+            hasPriceData ? (isProfit ? 'text-positive' : 'text-negative') : 'text-text-secondary'
+          }
+        >
+          P&L
         </span>
         {hasPriceData ? (
-          <span className={`font-medium tabular-nums ${isProfit ? 'text-positive' : 'text-negative'}`}>
-            {isProfit ? '+' : ''}{pos.moneda} {pnl.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ({pnlPercent.toFixed(1)}%)
+          <span className={`tabular-nums ${isProfit ? 'text-positive' : 'text-negative'}`}>
+            {isProfit ? '+' : ''}
+            {pos.moneda} {pnl.toLocaleString('es-AR', { minimumFractionDigits: 2 })} (
+            {pnlPercent.toFixed(1)}%)
           </span>
         ) : (
-          <span className="text-text-secondary">0% (Sin datos)</span>
+          <span className="text-text-secondary">—</span>
         )}
       </div>
 
@@ -145,13 +153,15 @@ export default function TickerPositionCard({
             className="flex w-full items-center justify-between rounded-lg bg-surface px-3 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-surface/80"
           >
             <span>{pos.lotes.length} lote(s)</span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            />
           </button>
 
           {expanded && (
             <div className="mt-3 space-y-2">
               {pos.lotes.map((lote) => {
-                const montoInv = parseFloat(lote.monto_invertido.toString());
+                const montoInv = parseFloat(lote.monto_invertido.toString())
 
                 return (
                   <div
@@ -159,9 +169,7 @@ export default function TickerPositionCard({
                     className="flex items-center justify-between rounded-lg border border-border/50 bg-surface/50 px-3 py-2 text-xs"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-text-primary">
-                        Lote #{lote.lote_numero}
-                      </p>
+                      <p className="font-medium text-text-primary">Lote #{lote.lote_numero}</p>
                       <p className="text-text-secondary">
                         {new Date(lote.fecha_inicio).toLocaleDateString('es-AR')} •{' '}
                         {montoInv.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
@@ -191,7 +199,7 @@ export default function TickerPositionCard({
                       </button>
                     </div>
                   </div>
-                );
+                )
               })}
             </div>
           )}
@@ -215,5 +223,5 @@ export default function TickerPositionCard({
         </button>
       </div>
     </div>
-  );
+  )
 }

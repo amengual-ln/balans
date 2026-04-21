@@ -12,20 +12,27 @@ const INVERSION_SELECT = `
   id, tipo, descripcion, monto_invertido, monto_recuperado, moneda,
   fecha_inicio, ticker, lote_numero, cantidad, precio_por_unidad, tipo_liquidez,
   estado, created_at, updated_at,
-  cuenta_origen:cuentas!cuenta_origen_id(id, nombre, moneda),
-  precios_mercado(precio, fecha):precios_mercado(order: fecha.desc, limit: 1),
-  movimientos!movimiento_id(count)
+  cuenta_origen:cuentas!cuenta_origen_id(id, nombre, moneda)
 `
 
-function shapeInversion(row: any) {
-  const { movimientos: movArr, precios_mercado: priceArr, ...rest } = row
-  const latestPrice = priceArr?.[0]?.precio ? Number(priceArr[0].precio) : null
-  const latestPriceFecha = priceArr?.[0]?.fecha ?? null
+async function fetchLatestPrice(inversionId: string) {
+  const { data, error } = await supabase
+    .from('precios_mercado')
+    .select('precio, fecha')
+    .eq('inversion_id', inversionId)
+    .order('fecha', { ascending: false })
+    .limit(1)
+    .single()
+  if (error || !data) return { precio: null, fecha: null }
+  return { precio: Number(data.precio), fecha: data.fecha }
+}
+
+function shapeInversion(row: any, latestPrice?: { precio: number | null; fecha: string | null }) {
   return {
-    ...rest,
-    precio_mercado_actual: latestPrice,
-    precio_fecha: latestPriceFecha,
-    _count: { movimientos: (movArr as any)?.[0]?.count ?? 0 },
+    ...row,
+    precio_mercado_actual: latestPrice?.precio ?? null,
+    precio_fecha: latestPrice?.fecha ?? null,
+    _count: { movimientos: 0 },
   }
 }
 
@@ -90,7 +97,14 @@ export class InversionesService {
       .eq('usuario_id', usuarioId)
       .order('created_at', { ascending: false })
     assertOk(error)
-    const shaped = (data ?? []).map(shapeInversion)
+
+    const inversiones = data ?? []
+    const shaped = await Promise.all(
+      inversiones.map(async (inv) => {
+        const latestPrice = await fetchLatestPrice(inv.id)
+        return shapeInversion(inv, latestPrice)
+      })
+    )
     return groupByTicker(shaped)
   }
 
@@ -101,7 +115,9 @@ export class InversionesService {
       .eq('id', id)
       .eq('usuario_id', usuarioId)
       .single()
-    return shapeInversion(assertSuccess(data, error, 'Inversión no encontrada'))
+    const inv = assertSuccess(data, error, 'Inversión no encontrada')
+    const latestPrice = await fetchLatestPrice(id)
+    return shapeInversion(inv, latestPrice)
   }
 
   async createInversion(usuarioId: string, data: CreateInversionInput) {
@@ -120,7 +136,7 @@ export class InversionesService {
 
     if (saldoActual < montoNum) {
       throw new Error(
-        `Saldo insuficiente. Disponible: $${saldoActual.toFixed(2)}, Requerido: $${montoNum.toFixed(2)}`,
+        `Saldo insuficiente. Disponible: $${saldoActual.toFixed(2)}, Requerido: $${montoNum.toFixed(2)}`
       )
     }
 
@@ -188,11 +204,7 @@ export class InversionesService {
     return shapeInversion(inversion)
   }
 
-  async updateInversion(
-    usuarioId: string,
-    id: string,
-    data: UpdateInversionInput,
-  ) {
+  async updateInversion(usuarioId: string, id: string, data: UpdateInversionInput) {
     // Verify ownership
     const { error: checkErr } = await supabase
       .from('inversiones')
@@ -208,8 +220,10 @@ export class InversionesService {
     if (data.ticker !== undefined) updateData.ticker = data.ticker
     if (data.tipo !== undefined) updateData.tipo = data.tipo
     if (data.tipo_liquidez !== undefined) updateData.tipo_liquidez = data.tipo_liquidez
-    if (data.cantidad !== undefined) updateData.cantidad = data.cantidad ? Number(data.cantidad) : null
-    if (data.precio_por_unidad !== undefined) updateData.precio_por_unidad = data.precio_por_unidad ? Number(data.precio_por_unidad) : null
+    if (data.cantidad !== undefined)
+      updateData.cantidad = data.cantidad ? Number(data.cantidad) : null
+    if (data.precio_por_unidad !== undefined)
+      updateData.precio_por_unidad = data.precio_por_unidad ? Number(data.precio_por_unidad) : null
 
     const { data: inversion, error } = await supabase
       .from('inversiones')
@@ -246,11 +260,7 @@ export class InversionesService {
     return { id }
   }
 
-  async registrarRetorno(
-    usuarioId: string,
-    id: string,
-    data: RegistrarRetornoInput,
-  ) {
+  async registrarRetorno(usuarioId: string, id: string, data: RegistrarRetornoInput) {
     const { data: inversion, error: invErr } = await supabase
       .from('inversiones')
       .select('usuario_id, monto_invertido, monto_recuperado, moneda, cantidad, estado')
@@ -330,11 +340,7 @@ export class InversionesService {
     }
   }
 
-  async registrarPrecio(
-    usuarioId: string,
-    id: string,
-    data: RegistrarPrecioInput,
-  ) {
+  async registrarPrecio(usuarioId: string, id: string, data: RegistrarPrecioInput) {
     // Verify ownership
     const { error: checkErr } = await supabase
       .from('inversiones')
@@ -379,11 +385,7 @@ export class InversionesService {
     return (data ?? []).reverse() // oldest first for chart
   }
 
-  async registrarPrecioByTicker(
-    usuarioId: string,
-    ticker: string,
-    data: RegistrarPrecioInput,
-  ) {
+  async registrarPrecioByTicker(usuarioId: string, ticker: string, data: RegistrarPrecioInput) {
     // Find most recent lote for this ticker
     const { data: lotes, error: lotesErr } = await supabase
       .from('inversiones')
