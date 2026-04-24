@@ -61,26 +61,19 @@ export default function TickerPositionCard({
   return (
     <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
       {/* Ticker Row + Pills + Add Button */}
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <p className="font-mono text-lg font-bold text-text-primary">{pos.ticker}</p>
-          <span className="inline-flex items-center gap-1 shrink-0 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
-            <TrendingUp className="h-3 w-3" />
-            {TIPO_LABELS[pos.tipo]}
-          </span>
-          <span className="shrink-0 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
-            {LIQUIDEZ_LABELS[pos.tipo_liquidez]}
-          </span>
-          {pos.sector && (
-            <span className="shrink-0 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
-              {pos.sector}
-            </span>
-          )}
-          {pos.estado !== 'ACTIVA' && (
-            <span className="shrink-0 rounded-full border border-text-secondary/30 bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
-              {pos.estado === 'FINALIZADA' ? 'Finalizada' : 'Parcial'}
-            </span>
-          )}
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex items-center gap-3">
+          <img
+            src={`https://img.logokit.com/ticker/${pos.ticker}?token=pk_frac3feea3daaab3aa4302`}
+            alt={pos.ticker}
+            className="h-10 w-10 shrink-0 rounded-lg object-contain"
+          />
+          <div className="min-w-0">
+            <p className="font-mono text-lg font-bold text-text-primary">{pos.ticker}</p>
+            {pos.lotes[0]?.descripcion && (
+              <p className="truncate text-xs text-text-secondary">{pos.lotes[0].descripcion}</p>
+            )}
+          </div>
         </div>
         <button
           onClick={() => onAddLote(pos)}
@@ -89,6 +82,26 @@ export default function TickerPositionCard({
         >
           <Plus className="h-4 w-4" />
         </button>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 shrink-0 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
+          <TrendingUp className="h-3 w-3" />
+          {TIPO_LABELS[pos.tipo]}
+        </span>
+        <span className="shrink-0 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
+          {LIQUIDEZ_LABELS[pos.tipo_liquidez]}
+        </span>
+        {pos.sector && (
+          <span className="shrink-0 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
+            {pos.sector}
+          </span>
+        )}
+        {pos.estado !== 'ACTIVA' && (
+          <span className="shrink-0 rounded-full border border-text-secondary/30 bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary">
+            {pos.estado === 'FINALIZADA' ? 'Finalizada' : 'Parcial'}
+          </span>
+        )}
       </div>
 
       {/* Amounts */}
