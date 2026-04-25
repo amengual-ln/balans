@@ -57,7 +57,7 @@ export class MovementsService {
     usuarioId: string,
     fromCurrency: string,
     toCurrency: string,
-    providedRate?: number,
+    providedRate?: number
   ): Promise<number> {
     if (fromCurrency === toCurrency) return 1
     if (providedRate) return providedRate
@@ -71,7 +71,7 @@ export class MovementsService {
 
     if (error || !config) {
       throw new Error(
-        `No hay tasa de conversión configurada para ${fromCurrency}. Por favor configúrala primero.`,
+        `No hay tasa de conversión configurada para ${fromCurrency}. Por favor configúrala primero.`
       )
     }
 
@@ -93,7 +93,7 @@ export class MovementsService {
     const saldoActual = Number((cuenta as any).saldo_actual)
     if (saldoActual < monto) {
       throw new Error(
-        `Saldo insuficiente en ${(cuenta as any).nombre}. Disponible: $${saldoActual.toFixed(2)}, Requerido: $${monto.toFixed(2)}`,
+        `Saldo insuficiente en ${(cuenta as any).nombre}. Disponible: $${saldoActual.toFixed(2)}, Requerido: $${monto.toFixed(2)}`
       )
     }
   }
@@ -109,7 +109,8 @@ export class MovementsService {
       .single()
 
     if (error || !cuenta) throw new Error('Cuenta no encontrada')
-    if (!(cuenta as any).activa) throw new Error(`La cuenta ${(cuenta as any).nombre} está inactiva`)
+    if (!(cuenta as any).activa)
+      throw new Error(`La cuenta ${(cuenta as any).nombre} está inactiva`)
   }
 
   /**
@@ -207,7 +208,12 @@ export class MovementsService {
     const moneda = data.moneda || (cuenta as any).moneda
     const tasaConversion =
       moneda !== (cuenta as any).moneda
-        ? await this.getConversionRate(usuarioId, moneda, (cuenta as any).moneda, data.tasa_conversion)
+        ? await this.getConversionRate(
+            usuarioId,
+            moneda,
+            (cuenta as any).moneda,
+            data.tasa_conversion
+          )
         : undefined
 
     const montoEnMonedaCuenta = tasaConversion ? data.monto * tasaConversion : data.monto
@@ -253,7 +259,12 @@ export class MovementsService {
     const moneda = data.moneda || (cuenta as any).moneda
     const tasaConversion =
       moneda !== (cuenta as any).moneda
-        ? await this.getConversionRate(usuarioId, moneda, (cuenta as any).moneda, data.tasa_conversion)
+        ? await this.getConversionRate(
+            usuarioId,
+            moneda,
+            (cuenta as any).moneda,
+            data.tasa_conversion
+          )
         : undefined
 
     const montoEnMonedaCuenta = tasaConversion ? data.monto * tasaConversion : data.monto
@@ -380,19 +391,23 @@ export class MovementsService {
     const [{ data: cuentaPago, error: errP }, { data: fondoCuenta, error: errF }] =
       await Promise.all([
         supabase.from('cuentas').select('moneda, nombre').eq('id', data.cuenta_pago_id).single(),
-        supabase.from('cuentas').select('tipo, moneda, nombre').eq('id', data.fondo_descuento_id).single(),
+        supabase
+          .from('cuentas')
+          .select('tipo, moneda, nombre')
+          .eq('id', data.fondo_descuento_id)
+          .single(),
       ])
     if (errP || !cuentaPago) throw new Error('Cuenta de pago no encontrada')
     if (errF || !fondoCuenta) throw new Error('Fondo de descuento no encontrado')
 
     if ((fondoCuenta as any).tipo !== 'FONDO_DESCUENTO') {
       throw new Error(
-        `La cuenta "${(fondoCuenta as any).nombre}" no es un fondo de descuento. Solo se permiten cuentas de tipo FONDO_DESCUENTO.`,
+        `La cuenta "${(fondoCuenta as any).nombre}" no es un fondo de descuento. Solo se permiten cuentas de tipo FONDO_DESCUENTO.`
       )
     }
 
     const montoSubsidio = parseFloat(
-      (data.monto_total * (data.porcentaje_descuento / 100)).toFixed(2),
+      (data.monto_total * (data.porcentaje_descuento / 100)).toFixed(2)
     )
     const montoPagado = parseFloat((data.monto_total - montoSubsidio).toFixed(2))
 
@@ -497,7 +512,8 @@ export class MovementsService {
       .eq('usuario_id', usuarioId)
       .single()
     if (cardErr || !tarjeta) throw new Error('Tarjeta no encontrada')
-    if (!(tarjeta as any).activa) throw new Error(`La tarjeta "${(tarjeta as any).nombre}" está inactiva`)
+    if (!(tarjeta as any).activa)
+      throw new Error(`La tarjeta "${(tarjeta as any).nombre}" está inactiva`)
 
     const t = tarjeta as any
     const montoTotal = data.monto
@@ -506,7 +522,7 @@ export class MovementsService {
 
     if (limiteDisponible < montoTotal) {
       throw new Error(
-        `Límite de crédito insuficiente en "${t.nombre}". Disponible: $${limiteDisponible.toFixed(2)}, Requerido: $${montoTotal.toFixed(2)}`,
+        `Límite de crédito insuficiente en "${t.nombre}". Disponible: $${limiteDisponible.toFixed(2)}, Requerido: $${montoTotal.toFixed(2)}`
       )
     }
 
@@ -680,9 +696,8 @@ export class MovementsService {
           .eq('id', compraId)
         assertOk(compraUpdateErr)
 
-        if (nuevosCuotasPagadas >= compra.cantidad_cuotas) {
-          await this.updateCardLimit(t.id, -Number(compra.monto_total))
-        }
+        const limitReduction = pagadasEnEstePago * Number(compra.monto_por_cuota)
+        await this.updateCardLimit(t.id, -limitReduction)
       }
 
       return { movimiento, cuotas_pagadas: cuotasPagadasCount }
@@ -718,9 +733,7 @@ export class MovementsService {
       q = q.eq('categoria', query.categoria)
     }
 
-    q = q
-      .order('fecha', { ascending: false })
-      .range(query.offset, query.offset + query.limit - 1)
+    q = q.order('fecha', { ascending: false }).range(query.offset, query.offset + query.limit - 1)
 
     const { data: movimientos, error, count: total } = await q
     assertOk(error)
@@ -775,12 +788,14 @@ export class MovementsService {
   async deleteMovement(id: string, usuarioId: string) {
     const { data: movimiento, error: findErr } = await supabase
       .from('movimientos')
-      .select(`
+      .select(
+        `
         *,
         movimiento_relacionado:movimientos!movimiento_relacionado_id(
           id, tipo, monto, moneda, cuenta_id, cuenta_destino_id, movimiento_relacionado_id
         )
-      `)
+      `
+      )
       .eq('id', id)
       .eq('usuario_id', usuarioId)
       .single()
@@ -790,13 +805,13 @@ export class MovementsService {
 
     if (mov.tipo === 'PAGO_TARJETA') {
       throw new Error(
-        'No se pueden eliminar pagos de tarjeta. Registrá un movimiento correctivo si es necesario.',
+        'No se pueden eliminar pagos de tarjeta. Registrá un movimiento correctivo si es necesario.'
       )
     }
 
     if (mov.tipo === 'PAGO_DEUDA' || mov.tipo === 'COBRO_DEUDA') {
       throw new Error(
-        'No se pueden eliminar pagos de deuda. Registrá un movimiento correctivo si es necesario.',
+        'No se pueden eliminar pagos de deuda. Registrá un movimiento correctivo si es necesario.'
       )
     }
 
@@ -857,8 +872,14 @@ export class MovementsService {
         await this.updateAccountBalance(movEntrada.cuenta_id, -montoEntrada)
 
         // Null both FK refs (Postgres RESTRICT prevents deletion otherwise)
-        await supabase.from('movimientos').update({ movimiento_relacionado_id: null }).eq('id', mov.id)
-        await supabase.from('movimientos').update({ movimiento_relacionado_id: null }).eq('id', relatedMovement.id)
+        await supabase
+          .from('movimientos')
+          .update({ movimiento_relacionado_id: null })
+          .eq('id', mov.id)
+        await supabase
+          .from('movimientos')
+          .update({ movimiento_relacionado_id: null })
+          .eq('id', relatedMovement.id)
 
         // Delete paired movement
         const { error: delRelErr } = await supabase
@@ -892,8 +913,14 @@ export class MovementsService {
         await this.updateAccountBalance(relatedMovement.cuenta_id, Number(relatedMovement.monto))
 
         // Null both FK refs
-        await supabase.from('movimientos').update({ movimiento_relacionado_id: null }).eq('id', mov.id)
-        await supabase.from('movimientos').update({ movimiento_relacionado_id: null }).eq('id', relatedMovement.id)
+        await supabase
+          .from('movimientos')
+          .update({ movimiento_relacionado_id: null })
+          .eq('id', mov.id)
+        await supabase
+          .from('movimientos')
+          .update({ movimiento_relacionado_id: null })
+          .eq('id', relatedMovement.id)
 
         // Delete related
         const { error: delRelErr } = await supabase
