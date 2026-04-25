@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod'
 
 // Enum for movement types matching Prisma schema
 export const TipoMovimientoSchema = z.enum([
@@ -14,10 +14,10 @@ export const TipoMovimientoSchema = z.enum([
   'INGRESO_INICIAL',
   'GASTO_CON_DESCUENTO',
   'SUBSIDIO',
-]);
+])
 
 // Common currency codes
-const VALID_CURRENCIES = ['ARS', 'USD', 'EUR', 'BRL', 'CLP', 'UYU'] as const;
+const VALID_CURRENCIES = ['ARS', 'USD', 'EUR', 'BRL', 'CLP', 'UYU'] as const
 
 // Base movement schema with common fields
 const baseMovementSchema = z.object({
@@ -38,7 +38,7 @@ const baseMovementSchema = z.object({
     .transform((val) => (typeof val === 'string' ? new Date(val) : val))
     .optional()
     .default(() => new Date()),
-});
+})
 
 // Quick add schema (minimal fields for QuickAdd component)
 export const quickAddMovementSchema = z.object({
@@ -57,21 +57,21 @@ export const quickAddMovementSchema = z.object({
     .transform((val) => (typeof val === 'string' ? new Date(val) : val))
     .optional()
     .default(() => new Date()),
-});
+})
 
 // Income movement schema
 export const createIncomeSchema = baseMovementSchema.extend({
   cuenta_id: z.string().uuid('ID de cuenta inválido'),
   moneda: z.enum(VALID_CURRENCIES).optional(), // If not provided, use account currency
   tasa_conversion: z.number().positive().optional(), // For multi-currency
-});
+})
 
 // Expense movement schema
 export const createExpenseSchema = baseMovementSchema.extend({
   cuenta_id: z.string().uuid('ID de cuenta inválido'),
   moneda: z.enum(VALID_CURRENCIES).optional(),
   tasa_conversion: z.number().positive().optional(),
-});
+})
 
 // Transfer movement schema
 export const createTransferSchema = z.object({
@@ -90,7 +90,7 @@ export const createTransferSchema = z.object({
     .optional()
     .default(() => new Date()),
   tasa_conversion: z.number().positive().optional(),
-});
+})
 
 // Card purchase schema
 export const createCardPurchaseSchema = baseMovementSchema.extend({
@@ -98,7 +98,7 @@ export const createCardPurchaseSchema = baseMovementSchema.extend({
   moneda: z.enum(VALID_CURRENCIES).optional(),
   tasa_conversion: z.number().positive().optional(),
   cantidad_cuotas: z.number().int().min(1).max(60).optional(), // For installments
-});
+})
 
 // Card payment schema
 export const createCardPaymentSchema = baseMovementSchema.extend({
@@ -106,7 +106,7 @@ export const createCardPaymentSchema = baseMovementSchema.extend({
   tarjeta_id: z.string().uuid('ID de tarjeta inválido'),
   moneda: z.enum(VALID_CURRENCIES).optional(),
   tasa_conversion: z.number().positive().optional(),
-});
+})
 
 // Debt payment schema
 export const createDebtPaymentSchema = baseMovementSchema.extend({
@@ -114,21 +114,21 @@ export const createDebtPaymentSchema = baseMovementSchema.extend({
   deuda_id: z.string().uuid('ID de deuda inválido'),
   moneda: z.enum(VALID_CURRENCIES).optional(),
   tasa_conversion: z.number().positive().optional(),
-});
+})
 
 // Investment movement schema
 export const createInvestmentSchema = baseMovementSchema.extend({
   cuenta_id: z.string().uuid('ID de cuenta inválido'),
   moneda: z.enum(VALID_CURRENCIES).optional(),
   tasa_conversion: z.number().positive().optional(),
-});
+})
 
 // Investment return schema
 export const createInvestmentReturnSchema = baseMovementSchema.extend({
   cuenta_id: z.string().uuid('ID de cuenta inválido'),
   moneda: z.enum(VALID_CURRENCIES).optional(),
   tasa_conversion: z.number().positive().optional(),
-});
+})
 
 // Query filters for GET /api/movements
 export const getMovementsQuerySchema = z.object({
@@ -146,18 +146,19 @@ export const getMovementsQuerySchema = z.object({
     .optional(),
   tipo: TipoMovimientoSchema.optional(),
   cuenta_id: z.string().uuid().optional(),
+  tarjeta_id: z.string().uuid().optional(),
   categoria: z.string().optional(),
   limit: z
     .string()
-    .default("100")
+    .default('100')
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().int().positive().max(1000)),
   offset: z
     .string()
-    .default("0")
+    .default('0')
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().int().nonnegative()),
-});
+})
 
 // Expense-with-discount schema
 // Creates two linked movements: GASTO_CON_DESCUENTO (from payment account)
@@ -170,7 +171,12 @@ export const expenseWithDiscountSchema = z.object({
   porcentaje_descuento: z
     .number()
     .or(z.string().transform((val) => parseFloat(val)))
-    .pipe(z.number().min(1, 'El porcentaje debe ser al menos 1').max(99, 'El porcentaje no puede superar 99')),
+    .pipe(
+      z
+        .number()
+        .min(1, 'El porcentaje debe ser al menos 1')
+        .max(99, 'El porcentaje no puede superar 99')
+    ),
   cuenta_pago_id: z.string().uuid('ID de cuenta de pago inválido'),
   fondo_descuento_id: z.string().uuid('ID de fondo de descuento inválido'),
   categoria: z.string().max(50).optional(),
@@ -182,17 +188,17 @@ export const expenseWithDiscountSchema = z.object({
     .transform((val) => (typeof val === 'string' ? new Date(val) : val))
     .optional()
     .default(() => new Date()),
-});
+})
 
 // Type exports
-export type QuickAddMovementInput = z.infer<typeof quickAddMovementSchema>;
-export type CreateIncomeInput = z.infer<typeof createIncomeSchema>;
-export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
-export type CreateTransferInput = z.infer<typeof createTransferSchema>;
-export type CreateCardPurchaseInput = z.infer<typeof createCardPurchaseSchema>;
-export type CreateCardPaymentInput = z.infer<typeof createCardPaymentSchema>;
-export type CreateDebtPaymentInput = z.infer<typeof createDebtPaymentSchema>;
-export type CreateInvestmentInput = z.infer<typeof createInvestmentSchema>;
-export type CreateInvestmentReturnInput = z.infer<typeof createInvestmentReturnSchema>;
-export type GetMovementsQuery = z.infer<typeof getMovementsQuerySchema>;
-export type ExpenseWithDiscountInput = z.infer<typeof expenseWithDiscountSchema>;
+export type QuickAddMovementInput = z.infer<typeof quickAddMovementSchema>
+export type CreateIncomeInput = z.infer<typeof createIncomeSchema>
+export type CreateExpenseInput = z.infer<typeof createExpenseSchema>
+export type CreateTransferInput = z.infer<typeof createTransferSchema>
+export type CreateCardPurchaseInput = z.infer<typeof createCardPurchaseSchema>
+export type CreateCardPaymentInput = z.infer<typeof createCardPaymentSchema>
+export type CreateDebtPaymentInput = z.infer<typeof createDebtPaymentSchema>
+export type CreateInvestmentInput = z.infer<typeof createInvestmentSchema>
+export type CreateInvestmentReturnInput = z.infer<typeof createInvestmentReturnSchema>
+export type GetMovementsQuery = z.infer<typeof getMovementsQuerySchema>
+export type ExpenseWithDiscountInput = z.infer<typeof expenseWithDiscountSchema>

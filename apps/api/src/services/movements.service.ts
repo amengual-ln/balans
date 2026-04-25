@@ -732,6 +732,9 @@ export class MovementsService {
     if (query.categoria) {
       q = q.eq('categoria', query.categoria)
     }
+    if (query.tarjeta_id) {
+      q = q.eq('tarjeta_id', query.tarjeta_id)
+    }
 
     q = q.order('fecha', { ascending: false }).range(query.offset, query.offset + query.limit - 1)
 

@@ -1,36 +1,53 @@
-import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
-import { useSWRConfig } from 'swr';
-import MovementsList from '@/components/MovementsList';
-import QuickAdd, { type QuickAddData } from '@/components/QuickAdd';
-import { useStats, type MonthlyStats } from '@/hooks/useStats';
-import { useMovements } from '@/hooks/useMovements';
-import { apiPost } from '@/hooks/useAPI';
+import { useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { useSWRConfig } from 'swr'
+import MovementsList from '@/components/MovementsList'
+import QuickAdd, { type QuickAddData } from '@/components/QuickAdd'
+import { useStats, type MonthlyStats } from '@/hooks/useStats'
+import { useMovements } from '@/hooks/useMovements'
+import { apiPost } from '@/hooks/useAPI'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const MONTH_NAMES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+]
 
 function getMonthRange(year: number, month: number): { desde: Date; hasta: Date } {
   return {
     desde: new Date(year, month, 1, 0, 0, 0, 0),
     hasta: new Date(year, month + 1, 0, 23, 59, 59, 999),
-  };
+  }
 }
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('es-AR', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(Math.abs(amount));
+  }).format(Math.abs(amount))
 }
 
 // ─── Monthly balance card ─────────────────────────────────────────────────────
 
-function MonthlyBalanceCard({ stats, isLoading }: { stats: MonthlyStats | null; isLoading: boolean }) {
+function MonthlyBalanceCard({
+  stats,
+  isLoading,
+}: {
+  stats: MonthlyStats | null
+  isLoading: boolean
+}) {
   if (isLoading) {
     return (
       <div className="mb-6 animate-pulse rounded-xl border border-border bg-white p-4 shadow-sm">
@@ -47,7 +64,7 @@ function MonthlyBalanceCard({ stats, isLoading }: { stats: MonthlyStats | null; 
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   if (!stats) {
@@ -55,10 +72,10 @@ function MonthlyBalanceCard({ stats, isLoading }: { stats: MonthlyStats | null; 
       <div className="mb-6 rounded-xl border border-border bg-white p-4 shadow-sm">
         <p className="text-center text-sm text-text-secondary">Sin datos para este período</p>
       </div>
-    );
+    )
   }
 
-  const isPositive = stats.balance >= 0;
+  const isPositive = stats.balance >= 0
 
   return (
     <div className="mb-6 rounded-xl border border-border bg-white p-4 shadow-sm">
@@ -93,54 +110,57 @@ function MonthlyBalanceCard({ stats, isLoading }: { stats: MonthlyStats | null; 
         </span>
       </div>
     </div>
-  );
+  )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Movements() {
-  const now = new Date();
-  const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const [searchParams] = useSearchParams()
+  const now = new Date()
+  const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() })
 
   const { desde, hasta } = useMemo(
     () => getMonthRange(period.year, period.month),
-    [period.year, period.month],
-  );
+    [period.year, period.month]
+  )
 
-  const desdeISO = desde.toISOString();
-  const hastaISO = hasta.toISOString();
+  const desdeISO = desde.toISOString()
+  const hastaISO = hasta.toISOString()
 
   // SWR hooks — cached, deduplicated, stale-while-revalidate
-  const { stats, isLoading: statsLoading, mutate: mutateStats } = useStats(desdeISO, hastaISO);
-  const { movements, isLoading: movementsLoading, mutate: mutateMovements } = useMovements(desdeISO, hastaISO);
-  const { mutate: globalMutate } = useSWRConfig();
+  const { stats, isLoading: statsLoading, mutate: mutateStats } = useStats(desdeISO, hastaISO)
+  const {
+    movements,
+    isLoading: movementsLoading,
+    mutate: mutateMovements,
+  } = useMovements(desdeISO, hastaISO, searchParams.get('tarjeta_id'))
+  const { mutate: globalMutate } = useSWRConfig()
 
   // ── Period navigation ────────────────────────────────────────────────────
 
   const prevMonth = () =>
     setPeriod((p) =>
-      p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 },
-    );
+      p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 }
+    )
 
   const nextMonth = () =>
     setPeriod((p) =>
-      p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 },
-    );
+      p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 }
+    )
 
-  const goToCurrentMonth = () =>
-    setPeriod({ year: now.getFullYear(), month: now.getMonth() });
+  const goToCurrentMonth = () => setPeriod({ year: now.getFullYear(), month: now.getMonth() })
 
-  const isCurrentMonth =
-    period.year === now.getFullYear() && period.month === now.getMonth();
+  const isCurrentMonth = period.year === now.getFullYear() && period.month === now.getMonth()
 
   // ── QuickAdd handler ─────────────────────────────────────────────────────
 
   const handleQuickAdd = async (data: QuickAddData) => {
-    let endpoint: string;
-    let body: unknown;
+    let endpoint: string
+    let body: unknown
 
     if (data.tipo === 'TARJETA') {
-      endpoint = '/api/movements/compra-tarjeta';
+      endpoint = '/api/movements/compra-tarjeta'
       body = {
         tarjeta_id: data.tarjeta_id,
         monto: data.monto,
@@ -148,9 +168,9 @@ export default function Movements() {
         descripcion: data.descripcion || 'Compra con tarjeta',
         categoria: data.categoria,
         fecha: data.fecha,
-      };
+      }
     } else if (data.tipo === 'TRANSFERENCIA') {
-      endpoint = '/api/movements/transfer';
+      endpoint = '/api/movements/transfer'
       body = {
         cuenta_origen_id: data.cuenta_id,
         cuenta_destino_id: data.cuenta_destino_id,
@@ -158,9 +178,9 @@ export default function Movements() {
         descripcion: data.descripcion,
         fecha: data.fecha,
         tasa_conversion: data.tasa_conversion,
-      };
+      }
     } else if (data.descuento_activo && data.fondo_descuento_id) {
-      endpoint = '/api/movements/expense-with-discount';
+      endpoint = '/api/movements/expense-with-discount'
       body = {
         monto_total: data.monto,
         porcentaje_descuento: data.porcentaje_descuento,
@@ -169,29 +189,28 @@ export default function Movements() {
         categoria: data.categoria,
         descripcion: data.descripcion,
         fecha: data.fecha,
-      };
+      }
     } else {
-      endpoint = '/api/movements/quick';
-      body = data;
+      endpoint = '/api/movements/quick'
+      body = data
     }
 
-    await apiPost(endpoint, body);
+    await apiPost(endpoint, body)
 
     // Revalidate movements, stats, and accounts (balance changed)
-    mutateMovements();
-    mutateStats();
-    globalMutate('/api/cuentas');
+    mutateMovements()
+    mutateStats()
+    globalMutate('/api/cuentas')
     if (data.tipo === 'TARJETA') {
-      globalMutate('/api/tarjetas');
+      globalMutate('/api/tarjetas')
     }
-  };
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-2xl px-4 pb-24 pt-6">
-
         <h1 className="mb-6 text-2xl font-bold text-text-primary">Movimientos</h1>
 
         {/* ── Period navigator ── */}
@@ -227,14 +246,11 @@ export default function Movements() {
         <MonthlyBalanceCard stats={stats} isLoading={statsLoading} />
 
         {/* ── Movements list with filters ── */}
-        <MovementsList
-          movements={movements}
-          isLoading={movementsLoading}
-        />
+        <MovementsList movements={movements} isLoading={movementsLoading} />
       </div>
 
       {/* ── QuickAdd FAB ── */}
       <QuickAdd onSubmit={handleQuickAdd} />
     </div>
-  );
+  )
 }
