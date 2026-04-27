@@ -44,6 +44,7 @@ export interface TickerPosition {
   precio_mercado_actual?: number | null;
   most_recent_lote_id: string;
   estado: EstadoInversion;
+  historial_precios?: { precio: number; fecha: string }[];
 }
 
 export function useInversiones() {

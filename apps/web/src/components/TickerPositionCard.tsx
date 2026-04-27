@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Pencil, Trash2, TrendingUp, BarChart3, ChevronDown, Plus } from 'lucide-react'
 import { TickerPosition, Inversion, TipoLiquidez } from '@/hooks/useInversiones'
+import MiniSparkline from './MiniSparkline'
 
 const TIPO_LABELS: Record<string, string> = {
   PLAZO_FIJO: 'Plazo Fijo',
@@ -156,6 +157,11 @@ export default function TickerPositionCard({
         ) : (
           <span className="text-text-secondary">—</span>
         )}
+      </div>
+
+      {/* Price history sparkline */}
+      <div className="mb-4">
+        <MiniSparkline data={pos.historial_precios ?? []} />
       </div>
 
       {/* Lotes Section */}

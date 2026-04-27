@@ -61,7 +61,6 @@ function groupByTicker(lotes: any[]) {
       }
     }
 
-    // Find the lote with the most recent market price
     let mostRecentLote = tickerLotes[0]
     let mostRecentDate = new Date(mostRecentLote.precio_fecha || 0)
     for (const lote of tickerLotes) {
@@ -89,6 +88,17 @@ function groupByTicker(lotes: any[]) {
   })
 }
 
+async function fetchPriceHistory(inversionIds: string[], limit = 20) {
+  const { data, error } = await supabase
+    .from('precios_mercado')
+    .select('inversion_id, precio, fecha')
+    .in('inversion_id', inversionIds)
+    .order('fecha', { ascending: true })
+    .limit(limit)
+  if (error || !data) return []
+  return data.map((r) => ({ precio: Number(r.precio), fecha: r.fecha }))
+}
+
 export class InversionesService {
   async getInversiones(usuarioId: string) {
     const { data, error } = await supabase
@@ -105,7 +115,14 @@ export class InversionesService {
         return shapeInversion(inv, latestPrice)
       })
     )
-    return groupByTicker(shaped)
+    const grouped = groupByTicker(shaped)
+
+    for (const group of grouped) {
+      const ids = group.lotes.map((l: { id: string }) => l.id)
+      group.historial_precios = await fetchPriceHistory(ids)
+    }
+
+    return grouped
   }
 
   async getInversionById(usuarioId: string, id: string) {
