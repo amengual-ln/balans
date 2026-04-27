@@ -1,505 +1,72 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Freya Balans — personal finance app. Monorepo `apps/web` + `apps/api`.
 
-## Project Overview
+## Tech Stack
 
-**Freya Balans** is a minimalist personal finance management web application for tracking all money movements with complete traceability. Part of the Freya ecosystem, the name "Balans" comes from Nordic languages meaning "balance."
+### Frontend (apps/web)
+React + TypeScript + Vite + Tailwind + Zustand + SWR + React Hook Form + Zod
 
-### Core Principles
-- Complete traceability: Every money movement is recorded and auditable
-- Multi-account and multi-currency support
-- Future commitments management (installments, recurring payments)
-- Informative budgets (non-restrictive)
-- AI-powered insights
-- Minimalist and fast UX: Clean interface optimized for quick data entry (<5 seconds target for expense logging)
-
-## Technology Stack
-
-### Frontend
-- **React** with **TypeScript**
-- **Vite** for build tooling
-- **Tailwind CSS** for styling (minimalist Nordic design)
-- **Zustand** for state management
-- **React Hook Form + Zod** for form validation
-- Mobile-first responsive design
-
-### Backend
-- **Node.js** with **Express** or **Fastify**
-- **Prisma ORM** connected to Supabase PostgreSQL
-- **Zod** for validation
-- **Supabase Auth** for authentication
+### Backend (apps/api)
+Express + TypeScript + Prisma + Zod + Supabase
 
 ### Database
-- **Supabase PostgreSQL** (existing instance)
-- Uses Row Level Security (RLS) for user data isolation
-- Extends existing database that contains a `productos` table (shopping list)
+Supabase PostgreSQL. RLS for user isolation.
 
-### AI/Insights
-- **Anthropic Claude API** for financial insights generation
+## Commands
 
-### Hosting
-- Frontend: **Vercel** (auto-deployment)
-- Backend: **Vercel Serverless Functions** or **Railway**
-- Database: **Supabase** (existing)
-
-## Development Commands
-
-Since this is a new project, common commands will be:
-
-### Once project structure is set up:
-
-**Frontend (apps/web):**
 ```bash
-npm install          # Install dependencies
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run lint         # Run linter
-npm run type-check   # TypeScript type checking
+# Frontend
+cd apps/web && npm run dev
+
+# Backend
+cd apps/api && npm run dev
+
+# DB migrations
+cd apps/api && npx prisma migrate dev && npx prisma generate
 ```
 
-**Backend (apps/api):**
-```bash
-npm install          # Install dependencies
-npm run dev          # Start development server
-npm run build        # Build for production
-npx prisma migrate dev    # Run database migrations
-npx prisma generate       # Generate Prisma client
-npx prisma studio         # Open Prisma Studio GUI
-```
+## Key Patterns
 
-**Testing:**
-```bash
-npm test             # Run all tests
-npm test -- --watch  # Run tests in watch mode
-npm run test:e2e     # Run end-to-end tests
-```
+### Add new feature (CRUD)
+1. Route: `apps/api/src/routes/{feature}.ts`
+2. Service: `apps/api/src/services/{feature}.service.ts`
+3. Schema: `apps/api/src/schemas/{feature}.schema.ts`
+4. Frontend page: `apps/web/src/pages/{Feature}.tsx`
+5. Add to `App.tsx` routing
 
-## Architecture
+### Data fetching (frontend)
+- SWR hooks in `apps/web/src/hooks/`
+- API base: `http://localhost:3001/api`
+- Auth: `x-user-id` header (placeholder)
 
-### Data Model Structure
+### Business Rules
+- Balance = sum of movements (transfers excluded from monthly)
+- Card/debt payments = expenses
+- Budgets = informative only, never block
+- Account currency = immutable if has movements
 
-**Core Entities:**
-- `Usuario`: User with email, name, and primary currency
-- `Cuenta`: Accounts (bank, virtual wallet, broker, cash)
-- `Tarjeta`: Credit cards with installment tracking
-- `Movimiento`: All money movements (income, expenses, transfers, payments)
-- `CompraEnCuotas`: Installment purchases on credit cards
-- `Cuota`: Individual installments with payment tracking
-- `Deuda`: Debts with payment tracking
-- `Suscripcion`: Recurring services (rent, phone, internet, subscriptions)
-- `Inversion`: Investments tracking (stocks, bonds, crypto, fixed deposits)
-- `PrecioMercado`: Market price history for investments
-- `Presupuesto`: Budget categories (informative, non-blocking)
-- `ConfiguracionMoneda`: Currency exchange rate configuration
+### Movement Types
+`INGRESO`, `GASTO`, `TRANSFERENCIA`, `PAGO_TARJETA`, `GASTO_TARJETA`, `PAGO_DEUDA`, `SUSCRIPCION`, `INVERSION`, `RETORNO_INVERSION`, `AJUSTE`, `INGRESO_INICIAL`
 
-### Movement Types (Movimiento.tipo)
-- `INGRESO`: Income
-- `GASTO`: Expense
-- `TRANSFERENCIA`: Transfer between accounts (doesn't affect monthly balance)
-- `PAGO_TARJETA`: Credit card payment (counts as expense)
-- `GASTO_TARJETA`: Credit card purchase
-- `PAGO_DEUDA`: Debt payment (counts as expense)
-- `SUSCRIPCION`: Recurring service payment (counts as expense)
-- `INVERSION`: Investment
-- `RETORNO_INVERSION`: Investment return
-- `AJUSTE`: Balance adjustment
-- `INGRESO_INICIAL`: Initial balance
-
-### Suscripcion (Subscriptions) Data Model
-
-**Fields:**
-- `id`: UUID
-- `usuario_id`: UUID (foreign key)
-- `nombre`: Service name (e.g., "Rent", "Netflix", "Phone Plan")
-- `descripcion`: Optional description
-- `monto`: Payment amount (decimal)
-- `moneda`: Currency code
-- `cuenta_id`: Account to charge (foreign key)
-- `frecuencia`: Payment frequency (SEMANAL/QUINCENAL/MENSUAL/TRIMESTRAL/ANUAL)
-- `dia_pago`: Day of period to charge (1-31; for SEMANAL, 1=Monday...7=Sunday)
-- `proxima_fecha_pago`: Next scheduled payment date
-- `fecha_inicio`: Start date
-- `fecha_fin`: Optional end date (null = ongoing)
-- `activo`: Boolean (false = paused, no payments generated)
-- `categoria`: Budget category for forecasting
-- `created_at`: Timestamp
-- `updated_at`: Timestamp
-
-**Behavior:**
-- Upon creation, calculate `proxima_fecha_pago` based on frequency and `dia_pago`
-- User manually marks payments as paid via `/pagar` endpoint (no automatic charging)
-- When payment is recorded, a SUSCRIPCION movement is created and `proxima_fecha_pago` advances by frequency period
-- If subscription is paused (`activo = false`), it doesn't appear in dashboard "due soon" list
-- If `fecha_fin` is reached, subscription stops appearing in upcoming payments
-- Dashboard shows next 3 upcoming subscription payments for active subscriptions
-- Budget forecasting includes active subscriptions in monthly projections
-
-### Inversion (Investments) Data Model
-
-**Fields:**
-- `id`: UUID
-- `usuario_id`: UUID (foreign key)
-- `tipo`: Investment type (PLAZO_FIJO/BONOS/ACCIONES/CRYPTO/OTRO)
-- `tipo_liquidez`: Liquidity type (INMEDIATA/DIAS/EXTERIOR)
-- `ticker`: Ticker/symbol (required, unique per user with `@@unique([usuario_id, ticker])`) (e.g., "TSLA", "GGAL", "FIXED_2026", "BTC")
-- `descripcion`: Optional friendly name (e.g., "Tesla Stock", "USD Bond", "Plazo Fijo")
-- `sector`: Optional sector/industry classification (e.g., "Tecnología", "Financiero", "Energía")
-- `monto_invertido`: Initial investment amount (decimal)
-- `monto_recuperado`: Amount recovered so far (decimal, default 0)
-- `cantidad`: Optional number of units/shares owned (decimal)
-- `precio_por_unidad`: Optional price per unit (decimal)
-- `moneda`: Currency code
-- `fecha_inicio`: Date of investment
-- `cuenta_origen_id`: Broker account where investment is held (foreign key)
-- `estado`: Investment status (ACTIVA/PARCIALMENTE_RECUPERADA/FINALIZADA)
-- `created_at`: Timestamp
-- `updated_at`: Timestamp
-
-**PrecioMercado (Market Price History) Fields:**
-- `id`: UUID
-- `inversion_id`: UUID (foreign key to Inversion)
-- `precio`: Market price at date (decimal)
-- `fecha`: Date of price observation
-- `created_at`: Timestamp
-
-**Behavior:**
-- Upon creation, debit account balance by monto_invertido and create INVERSION movement
-- User can register market prices to track valuation over time
-- P&L calculation: (valor_mercado + monto_recuperado) - monto_invertido (shows 0% until first market price is recorded)
-- When selling shares: create RETORNO_INVERSION movement, credit destination account, update monto_recuperado and estado
-- Cannot delete investment with RETORNO_INVERSION movements recorded
-- Dashboard shows current P&L percentage and absolute amounts per investment, grouped by sector when applicable
-- Sector field enables future reporting: P&L per sector, allocation % per sector, etc.
-
-### Critical Business Rules
-
-**RN-001: Account Balance Calculation**
-```
-saldo_actual = saldo_inicial
-  + SUM(ingresos)
-  + SUM(retornos_inversion)
-  - SUM(gastos)
-  - SUM(pagos_tarjeta)
-  - SUM(pagos_deuda)
-  - SUM(inversiones)
-  - SUM(transferencias_salida)
-  + SUM(transferencias_entrada)
-  + SUM(ajustes)
-```
-
-**RN-002: Credit Card Limit**
-```
-limite_comprometido = SUM(compras_en_cuotas.monto_total WHERE cuotas_pagadas < cantidad_cuotas)
-limite_disponible = limite_total - limite_comprometido
-```
-
-**RN-003: Monthly Balance**
-```
-ingresos_mes = SUM(movimientos WHERE tipo IN (INGRESO, RETORNO_INVERSION))
-gastos_mes = SUM(movimientos WHERE tipo IN (GASTO, GASTO_TARJETA, PAGO_TARJETA, PAGO_DEUDA, INVERSION))
-balance_mes = ingresos_mes - gastos_mes
-```
-
-**RN-004: Installment Purchase Flow**
-When registering an installment purchase:
-1. Create a GASTO_TARJETA movement with total amount
-2. Create CompraEnCuotas record
-3. Create N Cuota records with monthly due dates
-4. Increase card's limite_comprometido by monto_total
-5. Add first installment to current period's balance due
-
-**RN-005: Card Payment Flow**
-When paying a credit card:
-1. Create PAGO_TARJETA movement
-2. Reduce source account balance
-3. Mark installments as paid (oldest to newest)
-4. Reduce limite_comprometido for fully paid purchases
-5. Each installment paid releases its portion of the limit
-
-**RN-006: Recurring Service Payments**
-Subscriptions track recurring services (rent, phone plans, internet, etc.):
-1. Service defined with amount, frequency (weekly/biweekly/monthly/quarterly/annual), and due date
-2. System calculates and displays next payment due dates (no automatic charging)
-3. User manually triggers payment via `/pagar` endpoint to record SUSCRIPCION movement
-4. When paid, next payment date is automatically calculated based on frequency
-5. Inactive subscriptions don't appear in "due soon" dashboard section
-6. System respects end dates; subscriptions stop appearing after fecha_fin
-
-**RN-007: Investment Return Flow**
-When selling/liquidating investment shares:
-1. User specifies cantidad_vendida, precio_venta, and destination account
-2. Calculate total_retorno = cantidad_vendida × precio_venta
-3. Create RETORNO_INVERSION movement crediting destination account
-4. Update Inversion.monto_recuperado += total_retorno
-5. Update Inversion.cantidad -= cantidad_vendida (if applicable)
-6. Update Inversion.estado: if monto_recuperado >= monto_invertido then FINALIZADA else PARCIALMENTE_RECUPERADA
-
-### Key Architectural Patterns
-
-**Database Integrity:**
-- Account balances are calculated from movements, not stored directly (except via calculated fields)
-- All operations that modify balances must be atomic transactions
-- Transfers create two linked movements (movimiento_relacionado_id)
-- Currency conversion rates are stored with each movement for audit trail
-
-**Validation:**
-- Use Zod schemas on both frontend and backend
-- Backend must validate:
-  - Sufficient balance before expenses/payments
-  - Available credit limit before card purchases
-  - Account/card is active before operations
-  - Amount doesn't exceed debt when paying debts
-
-**Security:**
-- Supabase Row Level Security (RLS) ensures users only see their own data
-- All queries must filter by `usuario_id`
-- JWT tokens handled by Supabase Auth
-- Never modify git config or run destructive git commands unless explicitly requested
-
-**Currency Handling:**
-- Each account/card has a fixed currency
-- Cannot change currency if account has movements
-- Conversions use ConfiguracionMoneda rates at time of operation
-- Conversion rate stored in movement for historical accuracy
-
-## UI/UX Design Guidelines
-
-### Minimalist Design Philosophy
-- Clean Nordic-inspired interface
-- Prominent display of numbers (balances, amounts)
-- Generous whitespace
-- Single accent color (Nordic blue #3B82F6)
-- Semantic colors: green (positive), red (negative), yellow (warning)
-- Simple outline icons, no gradients, subtle shadows
-
-### Quick Add Feature (Critical)
-The most important UX feature - target: <5 seconds to log an expense
-- Floating Action Button (FAB) always visible
-- Modal with auto-focused amount field
-- Category quick-select pills (frequently used categories)
-- Smart defaults: last used account pre-selected
-- Keyboard shortcuts: `+` (income), `-` (expense), `Enter` (save), `Esc` (cancel)
-- Numpad optimized for mobile
-
-### Responsive Breakpoints
-- Mobile: < 768px (stack vertical, bottom nav, full-width cards)
-- Tablet: 768px - 1024px (2-column grid)
-- Desktop: > 1024px (3-column grid, fixed sidebar)
-
-### Animation Principles
-- Subtle and fast (<200ms)
-- Modal transitions: fade + slide up
-- No animations on page changes or number updates
-- Skeleton loaders instead of spinners
-
-## Project Structure (to be created)
+## File Map
 
 ```
-/
-├── apps/
-│   ├── web/              # React frontend
-│   │   ├── src/
-│   │   │   ├── components/
-│   │   │   ├── pages/
-│   │   │   ├── hooks/
-│   │   │   └── lib/
-│   │   └── package.json
-│   └── api/              # Express backend
-│       ├── src/
-│       │   ├── routes/
-│       │   ├── controllers/
-│       │   ├── services/
-│       │   └── repositories/
-│       └── package.json
-├── packages/
-│   └── shared/           # Shared types and utilities
-├── prisma/
-│   ├── schema.prisma
-│   └── migrations/
-└── package.json
+apps/api/src/routes/     # accounts, movements, cards, debts, suscripciones, inversiones
+apps/api/src/services/   # same 6
+apps/web/src/pages/      # Movements, Accounts, Cards, Debts, Subscriptions, Investments
+apps/web/src/components/ # 17 components
+apps/web/src/hooks/      # 8 hooks
 ```
 
-## API Endpoints
+## Constraints
 
-### Authentication (Supabase)
-- `POST /auth/signup`
-- `POST /auth/login`
-- `POST /auth/logout`
-- `GET /auth/me`
+- Budgets: never block transactions
+- Transfers: excluded from monthly balance
+- Card/debt payments: count as expenses
+- Cannot delete accounts/cards with movements
+- Account currency: cannot change if has movements
 
-### Accounts
-- `GET /api/cuentas`
-- `POST /api/cuentas`
-- `GET /api/cuentas/:id`
-- `PUT /api/cuentas/:id`
-- `DELETE /api/cuentas/:id`
-- `POST /api/cuentas/:id/ajustar` - Adjust balance
+## Quick Win
 
-### Cards
-- `GET /api/tarjetas`
-- `POST /api/tarjetas`
-- `GET /api/tarjetas/:id`
-- `PUT /api/tarjetas/:id`
-- `DELETE /api/tarjetas/:id`
-- `GET /api/tarjetas/:id/cuotas-pendientes`
-- `GET /api/tarjetas/:id/saldo-a-pagar`
-
-### Movements (Quick Add optimized)
-- `GET /api/movimientos?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&tipo=GASTO`
-- `POST /api/movimientos/quick` - Optimized endpoint for quick-add
-- `POST /api/movimientos/ingreso`
-- `POST /api/movimientos/gasto`
-- `POST /api/movimientos/transferencia`
-- `POST /api/movimientos/compra-tarjeta`
-- `POST /api/movimientos/pago-tarjeta`
-- `POST /api/movimientos/inversion`
-- `POST /api/movimientos/retorno-inversion`
-- `DELETE /api/movimientos/:id`
-
-### Debts
-- `GET /api/deudas`
-- `POST /api/deudas`
-- `GET /api/deudas/:id`
-- `PUT /api/deudas/:id`
-- `DELETE /api/deudas/:id`
-- `POST /api/deudas/:id/pagar`
-
-### Budgets
-- `GET /api/presupuestos`
-- `POST /api/presupuestos`
-- `PUT /api/presupuestos/:id`
-- `DELETE /api/presupuestos/:id`
-- `GET /api/presupuestos/estado?periodo=YYYY-MM`
-
-### Subscriptions
-- `GET /api/suscripciones` - List all subscriptions with next payment due
-- `POST /api/suscripciones` - Create new subscription
-- `GET /api/suscripciones/:id`
-- `PUT /api/suscripciones/:id` - Update subscription (pause, change amount, etc.)
-- `DELETE /api/suscripciones/:id` - Remove subscription
-- `POST /api/suscripciones/:id/pagar` - Mark subscription as paid (manual payment recording)
-- `GET /api/suscripciones/proximos?dias=30` - Get subscriptions due within N days
-
-### Investments
-- `GET /api/inversiones` - List all investments with current market price
-- `POST /api/inversiones` - Create new investment
-- `GET /api/inversiones/:id`
-- `PUT /api/inversiones/:id` - Update investment (name, ticker, quantity, price per unit)
-- `DELETE /api/inversiones/:id` - Remove investment (blocked if returns recorded)
-- `POST /api/inversiones/:id/retorno` - Record investment return (sell shares, liquidate position)
-- `POST /api/inversiones/:id/precio` - Register market price observation
-- `GET /api/inversiones/:id/precio-history?limit=50` - Get price history for charting
-
-### Balance & Reports
-- `GET /api/balance/mensual?periodo=YYYY-MM`
-- `GET /api/balance/anual?year=YYYY`
-- `GET /api/dashboard`
-
-### Configuration
-- `GET /api/config/monedas`
-- `PUT /api/config/monedas/:moneda`
-- `GET /api/config/categorias`
-
-### AI Insights
-- `POST /api/insights/generar`
-- `GET /api/insights/ultimos`
-
-## Database Integration
-
-### Supabase Connection
-The project extends an existing Supabase instance that contains a `productos` table (shopping list).
-
-**Environment Variables:**
-```
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ... # backend only
-DATABASE_URL=postgresql://... # Prisma connection string
-```
-
-### Migration Strategy
-- Do NOT modify existing `productos` table
-- Add new tables for Freya Balans entities
-- Use Prisma migrations to manage schema
-- Apply Row Level Security (RLS) policies for all new tables
-
-### Required Indexes
-```sql
-CREATE INDEX idx_movimientos_usuario_fecha ON movimientos(usuario_id, fecha DESC);
-CREATE INDEX idx_movimientos_cuenta ON movimientos(cuenta_id);
-CREATE INDEX idx_cuotas_fecha_vencimiento ON cuotas(fecha_vencimiento) WHERE pagada = false;
-```
-
-## Testing Requirements
-
-### Critical Test Scenarios
-1. **Installment calculations**: Verify limit committed/available after purchases and payments
-2. **Balance integrity**: Account balance must match sum of movements
-3. **Atomic transactions**: Transfers, card payments must be all-or-nothing
-4. **Currency conversions**: Verify correct conversion and rate storage
-5. **Monthly balance**: Verify transfers don't affect monthly balance but card/debt payments do
-
-## AI Insights Integration
-
-### Data Privacy
-- Only send aggregated data to Claude API (no personal identifiers)
-- Format: monthly totals, category breakdowns, budget status
-- Never include transaction descriptions or account names
-
-### Insight Types
-1. Spending pattern observations
-2. Month-over-month comparisons
-3. Budget alerts (exceeded or near limit)
-4. Concrete saving suggestions
-5. Simple balance projection for next month
-
-## Implementation Phases
-
-### Phase 1: MVP Core (4-6 weeks)
-1. Project setup (monorepo, Vite, Express, Prisma, Supabase)
-2. Core entities (accounts, basic movements)
-3. Credit cards with installments
-4. Advanced movements (transfers, categorization)
-5. Debts and budgets
-6. Responsive design, Quick Add optimization, deployment
-
-### Phase 2: Advanced Features (2-3 weeks)
-- Investments
-- AI insights
-- Custom categories
-- Advanced keyboard shortcuts
-- CSV export
-
-### Phase 3: Optimizations (2 weeks)
-- Simple visualizations
-- Performance optimization
-- PWA for mobile
-- Dark mode
-
-## Important Constraints
-
-- Budgets are informative only - they NEVER block transactions
-- Transfers between accounts do NOT affect monthly balance
-- Card and debt payments DO count as expenses in monthly balance
-- Account currency cannot be changed if it has movements
-- Card payment must not exceed debt amount
-- Cannot delete accounts/cards with associated movements
-- All financial operations must be validated for sufficient balance/limit
-
-## Success Metrics
-
-### Technical
-- Initial load time: <2s
-- API response time: <200ms (p95)
-- Uptime: >99.5%
-
-### UX
-- Expense logging time: <5 seconds (Quick Add)
-- Dashboard load time: <1 second
-- Max clicks for common action: 3
-
-### Product
-- Balance accuracy: must match real bank statements
-- Complete traceability: every peso has origin/destination
-- Future commitments visibility: all upcoming installments shown
+Implement Budgets — follows existing CRUD patterns exactly.
