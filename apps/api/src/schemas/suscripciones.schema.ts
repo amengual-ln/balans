@@ -26,6 +26,7 @@ export const updateSuscripcionSchema = z.object({
   cuenta_id: z.string().uuid().optional(),
   frecuencia: z.enum(VALID_FRECUENCIAS).optional(),
   dia_pago: z.number().int().min(1).max(31).optional(),
+  fecha_inicio: z.string().or(z.date()).transform(val => new Date(val)).optional(),
   fecha_fin: z.string().or(z.date()).transform(val => new Date(val)).optional().nullable(),
   activo: z.boolean().optional(),
   categoria: z.string().max(100).trim().optional().nullable(),

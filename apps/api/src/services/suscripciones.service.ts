@@ -174,9 +174,24 @@ export class SuscripcionesService {
     if (data.cuenta_id !== undefined) updateData.cuenta_id = data.cuenta_id
     if (data.frecuencia !== undefined) updateData.frecuencia = data.frecuencia
     if (data.dia_pago !== undefined) updateData.dia_pago = data.dia_pago
+    if (data.fecha_inicio !== undefined) updateData.fecha_inicio = data.fecha_inicio
     if (data.fecha_fin !== undefined) updateData.fecha_fin = data.fecha_fin
     if (data.activo !== undefined) updateData.activo = data.activo
     if (data.categoria !== undefined) updateData.categoria = data.categoria
+
+    if (data.fecha_inicio !== undefined || data.frecuencia !== undefined || data.dia_pago !== undefined) {
+      const { data: currentSub } = await supabase
+        .from('suscripciones')
+        .select('fecha_inicio, frecuencia, dia_pago')
+        .eq('id', id)
+        .single()
+      if (currentSub) {
+        const newFechaInicio = data.fecha_inicio ?? new Date(currentSub.fecha_inicio)
+        const newFrecuencia = data.frecuencia ?? currentSub.frecuencia
+        const newDiaPago = data.dia_pago ?? currentSub.dia_pago
+        updateData.proxima_fecha_pago = calculateProximaFecha(newFechaInicio, newFrecuencia, newDiaPago)
+      }
+    }
 
     const { data: row, error } = await supabase
       .from('suscripciones')
@@ -230,6 +245,14 @@ export class SuscripcionesService {
 
     const montoNum = data.monto ?? Number(sub.monto)
     const cuentaId = data.cuenta_id
+
+    if (data.monto !== undefined) {
+      const { error: montoErr } = await supabase
+        .from('suscripciones')
+        .update({ monto: data.monto })
+        .eq('id', id)
+      if (montoErr) console.error('[SuscripcionPayment] Monto update failed:', montoErr)
+    }
 
     const { data: cuenta, error: cuentaErr } = await supabase
       .from('cuentas')

@@ -181,6 +181,7 @@ export default function Subscriptions() {
     try {
       await apiPut(`/api/suscripciones/${editSub.id}`, {
         ...data,
+        fecha_inicio: new Date(data.fecha_inicio).toISOString(),
         fecha_fin: data.fecha_fin ? new Date(data.fecha_fin).toISOString() : null,
       });
       mutate();
