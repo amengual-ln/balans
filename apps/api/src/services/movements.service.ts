@@ -1047,6 +1047,40 @@ export class MovementsService {
       por_tipo,
     }
   }
+
+  private readonly EDITABLE_TYPES = new Set(['INGRESO', 'GASTO', 'TRANSFERENCIA', 'AJUSTE', 'INGRESO_INICIAL'])
+
+  async updateMovement(id: string, usuarioId: string, data: { descripcion?: string; categoria?: string | null; fecha?: Date }) {
+    const { data: mov, error: fetchErr } = await supabase
+      .from('movimientos')
+      .select('*')
+      .eq('id', id)
+      .eq('usuario_id', usuarioId)
+      .single()
+    assertOk(fetchErr)
+    if (!mov) throw new Error('Movimiento no encontrado')
+
+    if (!this.EDITABLE_TYPES.has(mov.tipo)) {
+      throw new Error(`No se puede editar movimientos de tipo ${mov.tipo}`)
+    }
+
+    const updates: Record<string, unknown> = {}
+    if (data.descripcion !== undefined) updates.descripcion = data.descripcion
+    if (data.categoria !== undefined) updates.categoria = data.categoria
+    if (data.fecha !== undefined) updates.fecha = data.fecha
+
+    if (Object.keys(updates).length === 0) return { movimiento: mov }
+
+    const { data: updated, error } = await supabase
+      .from('movimientos')
+      .update(updates)
+      .eq('id', id)
+      .select(MOVEMENT_SELECT)
+      .single()
+    assertOk(error)
+
+    return { movimiento: updated }
+  }
 }
 
 export const movementsService = new MovementsService()

@@ -4,9 +4,11 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-reac
 import { useSWRConfig } from 'swr'
 import MovementsList from '@/components/MovementsList'
 import QuickAdd, { type QuickAddData } from '@/components/QuickAdd'
+import EditMovementModal from '@/components/EditMovementModal'
 import { useStats, type MonthlyStats } from '@/hooks/useStats'
 import { useMovements } from '@/hooks/useMovements'
 import { apiPost } from '@/hooks/useAPI'
+import type { Movement } from '@/hooks/useMovements'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -153,6 +155,18 @@ export default function Movements() {
 
   const isCurrentMonth = period.year === now.getFullYear() && period.month === now.getMonth()
 
+  const [editTarget, setEditTarget] = useState<Movement | null>(null);
+
+  const handleEditMovement = (m: Movement) => setEditTarget(m);
+  const handleEditSuccess = (_updated: Movement) => {
+    mutateMovements();
+    mutateStats();
+    globalMutate('/api/cuentas');
+    setEditTarget(null);
+  };
+
+  const handleDeleted = () => handleEditSuccess(null as unknown as Movement);
+
   // ── QuickAdd handler ─────────────────────────────────────────────────────
 
   const handleQuickAdd = async (data: QuickAddData) => {
@@ -246,11 +260,21 @@ export default function Movements() {
         <MonthlyBalanceCard stats={stats} isLoading={statsLoading} />
 
         {/* ── Movements list with filters ── */}
-        <MovementsList movements={movements} isLoading={movementsLoading} />
+        <MovementsList movements={movements} isLoading={movementsLoading} onEditMovement={handleEditMovement} />
       </div>
 
       {/* ── QuickAdd FAB ── */}
       <QuickAdd onSubmit={handleQuickAdd} />
+
+      {/* ── Edit movement modal ── */}
+      {editTarget && (
+        <EditMovementModal
+          movement={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSuccess={handleEditSuccess}
+          onDeleted={handleDeleted}
+        />
+      )}
     </div>
   )
 }

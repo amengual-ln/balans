@@ -9,6 +9,7 @@ import {
   createCardPaymentSchema,
   getMovementsQuerySchema,
   expenseWithDiscountSchema,
+  editMovementSchema,
 } from '../schemas/movements.schema.js';
 import { z } from 'zod';
 
@@ -434,6 +435,37 @@ router.get('/:id', async (req: Request, res: Response) => {
       success: false,
       error: error instanceof Error ? error.message : 'Error al obtener movimiento',
     });
+  }
+});
+
+/**
+ * PATCH /api/movements/:id
+ * Edit date/description/category of simple movements (not card, debt, investment, etc.)
+ */
+router.patch('/:id', async (req: Request, res: Response) => {
+  try {
+    const usuarioId = getUserId(req);
+    const { id } = req.params;
+
+    const data = editMovementSchema.parse(req.body);
+    const result = await movementsService.updateMovement(id, usuarioId, data);
+
+    res.json({
+      success: true,
+      message: 'Movimiento actualizado',
+      data: result.movimiento,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ success: false, error: 'Datos inválidos', details: error.errors });
+    }
+    if (error instanceof Error && error.message === 'Movimiento no encontrado') {
+      return res.status(404).json({ success: false, error: error.message });
+    }
+    if (error instanceof Error && error.message.includes('No se puede editar')) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Error al actualizar movimiento' });
   }
 });
 

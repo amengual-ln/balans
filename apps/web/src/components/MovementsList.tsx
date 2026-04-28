@@ -65,7 +65,7 @@ function groupByDate(movements: Movement[]): Array<{ label: string; items: Movem
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Movement }) {
+function MovementRow({ movement, subsidio, onEdit }: { movement: Movement; subsidio?: Movement; onEdit?: (m: Movement) => void }) {
   const prefix = getAmountPrefix(movement.tipo);
   const amountClass = getAmountClass(movement.tipo);
 
@@ -73,6 +73,9 @@ function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Mo
   const isCardMovement =
     movement.tipo === 'GASTO_TARJETA' || movement.tipo === 'PAGO_TARJETA';
   const isDebtMovement = movement.tipo === 'PAGO_DEUDA' || movement.tipo === 'COBRO_DEUDA';
+
+  const EDITABLE_TYPES = new Set(['INGRESO', 'GASTO', 'TRANSFERENCIA', 'AJUSTE', 'INGRESO_INICIAL']);
+  const canEdit = EDITABLE_TYPES.has(movement.tipo);
 
   const transferLabel = isTransfer
     ? [movement.cuenta_origen?.nombre, movement.cuenta_destino?.nombre]
@@ -93,8 +96,24 @@ function MovementRow({ movement, subsidio }: { movement: Movement; subsidio?: Mo
     ? null
     : [movement.categoria, cardName ?? debtName ?? accountName].filter(Boolean).join(' · ');
 
+  const [tapCount, setTapCount] = useState(0);
+  const [tapTimer, setTapTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTap = () => {
+    if (!canEdit || !onEdit) return;
+    if (tapTimer) clearTimeout(tapTimer);
+    const next = tapCount + 1;
+    setTapCount(next);
+    if (next >= 3) {
+      onEdit(movement);
+      setTapCount(0);
+    } else {
+      setTapTimer(setTimeout(() => setTapCount(0), 400));
+    }
+  };
+
   return (
-    <div>
+    <div onClick={handleTap}>
       <div className="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-surface">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 truncate text-sm font-medium text-text-primary">
@@ -189,14 +208,13 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 interface MovementsListProps {
   movements: Movement[];
   isLoading: boolean;
+  onEditMovement?: (m: Movement) => void;
 }
 
-export default function MovementsList({ movements, isLoading }: MovementsListProps) {
-  // Filters (client-side — full period is fetched once, filters are instant)
+export default function MovementsList({ movements, isLoading, onEditMovement }: MovementsListProps) {
   const [filterGroup, setFilterGroup] = useState<FilterGroup>('');
   const [filterCategoria, setFilterCategoria] = useState('');
 
-  // Build subsidioMap: keyed by GASTO_CON_DESCUENTO id → SUBSIDIO movement
   const subsidioMap = new Map<string, Movement>();
   movements.forEach((m) => {
     if (m.tipo === 'SUBSIDIO' && m.movimiento_relacionado_id) {
@@ -204,7 +222,6 @@ export default function MovementsList({ movements, isLoading }: MovementsListPro
     }
   });
 
-  // Client-side filtering — SUBSIDIOs always excluded (rendered nested)
   const filtered = movements.filter((m) => {
     if (m.tipo === 'SUBSIDIO') return false;
     if (filterGroup === 'income' && !INCOME_TYPES.has(m.tipo)) return false;
@@ -275,6 +292,7 @@ export default function MovementsList({ movements, isLoading }: MovementsListPro
                     key={m.id}
                     movement={m}
                     subsidio={m.tipo === 'GASTO_CON_DESCUENTO' ? subsidioMap.get(m.id) : undefined}
+                    onEdit={onEditMovement}
                   />
                 ))}
               </div>

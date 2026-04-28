@@ -69,4 +69,20 @@ export async function apiDelete<T = unknown>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export async function apiPatch<T = unknown>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-user-id': USER_ID,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(json.error ?? 'Error al actualizar');
+  }
+  return res.json() as Promise<T>;
+}
+
 export { USER_ID };

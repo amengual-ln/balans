@@ -202,3 +202,15 @@ export type CreateInvestmentInput = z.infer<typeof createInvestmentSchema>
 export type CreateInvestmentReturnInput = z.infer<typeof createInvestmentReturnSchema>
 export type GetMovementsQuery = z.infer<typeof getMovementsQuerySchema>
 export type ExpenseWithDiscountInput = z.infer<typeof expenseWithDiscountSchema>
+
+export const editMovementSchema = z.object({
+  descripcion: z.string().min(1).max(200).trim().optional(),
+  categoria: z.string().max(50).optional().nullable(),
+  fecha: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .transform((val) => (typeof val === 'string' ? new Date(val) : val))
+    .optional(),
+})
+export type EditMovementInput = z.infer<typeof editMovementSchema>
