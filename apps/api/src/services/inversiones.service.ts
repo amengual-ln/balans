@@ -84,6 +84,7 @@ function groupByTicker(lotes: any[]) {
       precio_mercado_actual: mostRecentLote.precio_mercado_actual,
       most_recent_lote_id: mostRecentLote.id,
       estado: canonical.estado,
+      historial_precios: [] as { precio: number; fecha: any }[],
     }
   })
 }
