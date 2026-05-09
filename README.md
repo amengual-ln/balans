@@ -8,6 +8,7 @@ Minimalist personal finance app with complete transaction traceability. Part of 
 - Multi-account and multi-currency support
 - Credit cards with installment tracking
 - Debt and investment management
+- Discount fund system for gastos (direct and card purchases)
 - Informative budgets (non-restrictive)
 - AI-powered financial insights
 - Ultra-fast expense logging (<5 seconds)
@@ -117,15 +118,15 @@ freya-balans/
 ├── apps/
 │   ├── web/                    # React frontend
 │   │   └── src/
-│   │       ├── components/     # 17 components
-│   │       ├── pages/          # 6 pages
-│   │       ├── hooks/          # 8 hooks
+│   │       ├── components/     # QuickAdd, MovementsList, EditMovementModal, BottomNav + others
+│   │       ├── pages/          # Movements, Accounts, Cards, Debts, Subscriptions, Investments
+│   │       ├── hooks/          # useAccounts, useCards, useMovements, useStats, useAPI, etc.
 │   │       └── lib/            # utilities
 │   └── api/                    # Express backend
 │       └── src/
-│           ├── routes/         # 6 routes
-│           ├── services/       # 6 services
-│           ├── schemas/        # Zod schemas
+│           ├── routes/         # accounts, movements, cards, debts, suscripciones, inversiones
+│           ├── services/       # accounts, movements, cards, debts, suscripciones, inversiones + discount fund
+│           ├── schemas/        # Zod schemas for validation
 │           └── prisma/
 │               └── schema.prisma
 ├── CLAUDE.md                   # agent context
@@ -142,6 +143,8 @@ freya-balans/
 5. **Budgets** = informative only, never block transactions
 6. **Currency** = immutable if account has movements
 7. **No delete** = accounts/cards with movements protected
+8. **Discount fund** = applies % to gasto, subsidizes FONDO_DESCUENTO account, remainder goes to payment method
+9. **Card purchases with discount** = GASTO_TARJETA_CON_DESCUENTO + SUBSIDIO, limit increased by discounted amount only
 
 ## Troubleshooting
 

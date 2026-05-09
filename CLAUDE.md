@@ -45,18 +45,22 @@ cd apps/api && npx prisma migrate dev && npx prisma generate
 - Card/debt payments = expenses
 - Budgets = informative only, never block
 - Account currency = immutable if has movements
+- Discount fund: applies % to gasto, subsidizes fondo_descuento (FONDO_DESCUENTO account), remainder goes to payment method
+- Discount fund: supports both direct account gastos and card purchases
+- Card purchases with discount: GASTO_TARJETA_CON_DESCUENTO + SUBSIDIO, limit increased by discounted amount only
 
 ### Movement Types
-`INGRESO`, `GASTO`, `TRANSFERENCIA`, `PAGO_TARJETA`, `GASTO_TARJETA`, `PAGO_DEUDA`, `SUSCRIPCION`, `INVERSION`, `RETORNO_INVERSION`, `AJUSTE`, `INGRESO_INICIAL`
+`INGRESO`, `GASTO`, `TRANSFERENCIA`, `PAGO_TARJETA`, `GASTO_TARJETA`, `GASTO_TARJETA_CON_DESCUENTO`, `PAGO_DEUDA`, `COBRO_DEUDA`, `SUSCRIPCION`, `INVERSION`, `RETORNO_INVERSION`, `AJUSTE`, `INGRESO_INICIAL`, `GASTO_CON_DESCUENTO`, `SUBSIDIO`
 
 ## File Map
 
 ```
 apps/api/src/routes/     # accounts, movements, cards, debts, suscripciones, inversiones
-apps/api/src/services/   # same 6
+apps/api/src/services/   # accounts, movements, cards, debts, suscripciones, inversiones, cuentas, inversiones
+apps/api/src/schemas/    # movements.schema, accounts.schema, investments.schema, etc.
 apps/web/src/pages/      # Movements, Accounts, Cards, Debts, Subscriptions, Investments
-apps/web/src/components/ # 17 components
-apps/web/src/hooks/      # 8 hooks
+apps/web/src/components/ # QuickAdd, MovementsList, EditMovementModal, BottomNav, etc.
+apps/web/src/hooks/      # useAccounts, useCards, useMovements, useStats, useAPI, etc.
 ```
 
 ## Constraints

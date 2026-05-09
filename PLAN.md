@@ -1,12 +1,12 @@
 # PLAN.md
 
-> Status dashboard. 2026-04-26
+> Status dashboard. 2026-05-09
 
 ---
 
 ## Implementation Status
 
-### Backend (apps/api) — 80%
+### Backend (apps/api) — 85%
 
 | Feature              | Status    | Notes                                       |
 |---------------------|-----------|---------------------------------------------|
@@ -18,6 +18,7 @@
 | Debts CRUD           | ✅ Done  |                                             |
 | Subscriptions CRUD   | ✅ Done  |                                             |
 | Investments CRUD     | ✅ Done  |                                             |
+| **Discount fund on card purchases** | ✅ Done  | GASTO_TARJETA_CON_DESCUENTO + SUBSIDIO |
 | **Budgets CRUD**     | ❌ Missing |                                           |
 | **Balance endpoints**| ❌ Missing | `/balance/mensual`, `/balance/anual`        |
 | **Dashboard endpoint** | ❌ Missing | `/dashboard`                              |
@@ -25,7 +26,7 @@
 | **Currency config**  | ❌ Missing | `/config/monedas`                          |
 | Auth                 | ⚠️ Partial | x-user-id header (not Supabase JWT)        |
 
-### Frontend (apps/web) — 80%
+### Frontend (apps/web) — 85%
 
 | Feature              | Status    | Notes                                       |
 |---------------------|-----------|---------------------------------------------|
@@ -41,10 +42,11 @@
 | Subscriptions page   | ✅ Done  |                                             |
 | Investments page     | ✅ Done  |                                             |
 | **Budgets page**     | ❌ Missing |                                           |
-| QuickAdd FAB         | ✅ Done  | Income/expense/transfer                     |
+| QuickAdd FAB         | ✅ Done  | Income/expense/transfer + card purchases + discount fund |
 | BottomNav            | ✅ Done  | 4 tabs                                      |
 | Loading skeletons    | ✅ Done  |                                             |
 | Mobile responsive    | ✅ Done  |                                             |
+| **Discount fund on card** | ✅ Done  | Card purchases with fondo descuento support |
 | **Dark mode**        | ❌ Missing |                                           |
 | **AI Insights UI**  | ❌ Missing |                                           |
 | **PWA**             | ⚠️ Deps installed | Not configured                           |
@@ -96,12 +98,12 @@ Usuario, Cuenta, Tarjeta, Movimiento, CompraEnCuotas, Cuota, Deuda, PagoDeuda, I
 ## File Inventory
 
 ```
-apps/api/src/routes/      # 6 routes
-apps/api/src/services/    # 6 services
-apps/api/prisma/schema    # complete
+apps/api/src/routes/      # 6 routes + movements/compra-tarjeta-descuento
+apps/api/src/services/    # 6 services + movements.service (with discount fund methods)
+apps/api/prisma/schema    # complete, all movement types
 apps/web/src/pages/        # 6 pages (no Dashboard, no Budgets)
-apps/web/src/components/   # 17 components
-apps/web/src/hooks/       # 8 hooks
+apps/web/src/components/   # QuickAdd, MovementsList, EditMovementModal, BottomNav + others
+apps/web/src/hooks/        # 8 hooks + useStats
 ```
 
 ---
