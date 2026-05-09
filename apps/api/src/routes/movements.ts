@@ -6,6 +6,7 @@ import {
   createExpenseSchema,
   createTransferSchema,
   createCardPurchaseSchema,
+  createCardPurchaseWithDiscountSchema,
   createCardPaymentSchema,
   getMovementsQuerySchema,
   expenseWithDiscountSchema,
@@ -249,6 +250,44 @@ router.post('/compra-tarjeta', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Error al registrar compra en tarjeta',
+    });
+  }
+});
+
+/**
+ * POST /api/movements/compra-tarjeta-descuento
+ * Create installment card purchase with discount fund subsidy.
+ * Creates: GASTO_TARJETA_CON_DESCUENTO + SUBSIDIO + CompraEnCuotas + Cuotas.
+ */
+router.post('/compra-tarjeta-descuento', async (req: Request, res: Response) => {
+  try {
+    const usuarioId = getUserId(req);
+    const data = createCardPurchaseWithDiscountSchema.parse(req.body);
+    const result = await movementsService.createCardPurchaseWithDiscount(usuarioId, data);
+    res.status(201).json({
+      success: true,
+      message: 'Compra en tarjeta con descuento registrada exitosamente',
+      data: result,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ success: false, error: 'Datos inválidos', details: error.errors });
+    }
+    if (error instanceof Error) {
+      if (error.message === 'Tarjeta no encontrada' || error.message === 'Fondo de descuento no encontrado') {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      if (
+        error.message.includes('Límite de crédito insuficiente') ||
+        error.message.includes('inactiva') ||
+        error.message.includes('fondo de descuento')
+      ) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+    }
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al registrar compra en tarjeta con descuento',
     });
   }
 });

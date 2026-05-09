@@ -36,6 +36,7 @@ export class AccountsService {
           case 'GASTO':
           case 'PAGO_TARJETA':
           case 'GASTO_TARJETA':
+          case 'GASTO_TARJETA_CON_DESCUENTO':
           case 'PAGO_DEUDA':
           case 'INVERSION':
           case 'TRANSFERENCIA':

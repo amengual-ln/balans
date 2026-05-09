@@ -7,6 +7,7 @@ export const TipoMovimientoSchema = z.enum([
   'TRANSFERENCIA',
   'PAGO_TARJETA',
   'GASTO_TARJETA',
+  'GASTO_TARJETA_CON_DESCUENTO',
   'PAGO_DEUDA',
   'INVERSION',
   'RETORNO_INVERSION',
@@ -98,6 +99,32 @@ export const createCardPurchaseSchema = baseMovementSchema.extend({
   moneda: z.enum(VALID_CURRENCIES).optional(),
   tasa_conversion: z.number().positive().optional(),
   cantidad_cuotas: z.number().int().min(1).max(60).optional(), // For installments
+})
+
+// Card purchase with discount fund schema
+export const createCardPurchaseWithDiscountSchema = z.object({
+  monto_total: z
+    .number()
+    .or(z.string().transform((val) => parseFloat(val)))
+    .pipe(z.number().positive('El monto total debe ser mayor a 0')),
+  porcentaje_descuento: z
+    .number()
+    .or(z.string().transform((val) => parseFloat(val)))
+    .pipe(z.number().min(1, 'El porcentaje debe ser al menos 1').max(99)),
+  tarjeta_id: z.string().uuid('ID de tarjeta inválido'),
+  fondo_descuento_id: z.string().uuid('ID de fondo de descuento inválido'),
+  cantidad_cuotas: z.number().int().min(1).max(60).optional(),
+  categoria: z.string().max(50).optional(),
+  descripcion: z.string().max(200).trim().optional(),
+  fecha: z
+    .string()
+    .datetime()
+    .or(z.date())
+    .transform((val) => (typeof val === 'string' ? new Date(val) : val))
+    .optional()
+    .default(() => new Date()),
+  moneda: z.enum(VALID_CURRENCIES).optional(),
+  tasa_conversion: z.number().positive().optional(),
 })
 
 // Card payment schema
@@ -196,6 +223,7 @@ export type CreateIncomeInput = z.infer<typeof createIncomeSchema>
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>
 export type CreateTransferInput = z.infer<typeof createTransferSchema>
 export type CreateCardPurchaseInput = z.infer<typeof createCardPurchaseSchema>
+export type CreateCardPurchaseWithDiscountInput = z.infer<typeof createCardPurchaseWithDiscountSchema>
 export type CreateCardPaymentInput = z.infer<typeof createCardPaymentSchema>
 export type CreateDebtPaymentInput = z.infer<typeof createDebtPaymentSchema>
 export type CreateInvestmentInput = z.infer<typeof createInvestmentSchema>

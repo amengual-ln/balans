@@ -610,8 +610,8 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
               )}
             </div>
 
-            {/* Discount fund section — only for regular gastos (not card purchases) */}
-            {tipo === 'GASTO' && !isCardSelected && (
+            {/* Discount fund section — for regular gastos and card purchases */}
+            {(tipo === 'GASTO' && !isCardSelected) || (isCardSelected && discountFunds.length > 0) && (
               <div className="mb-4">
                 {/* Toggle */}
                 <label

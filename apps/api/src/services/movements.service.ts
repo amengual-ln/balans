@@ -9,6 +9,7 @@ import type {
   GetMovementsQuery,
   ExpenseWithDiscountInput,
   CreateCardPurchaseInput,
+  CreateCardPurchaseWithDiscountInput,
   CreateCardPaymentInput,
 } from '../schemas/movements.schema.js'
 
@@ -594,6 +595,148 @@ export class MovementsService {
   }
 
   /**
+   * Create card purchase with discount fund — splits payment between
+   * card (montoPagado) and discount fund (montoSubsidio).
+   * Creates: GASTO_TARJETA_CON_DESCUENTO + SUBSIDIO + CompraEnCuotas + Cuotas.
+   */
+  async createCardPurchaseWithDiscount(usuarioId: string, data: CreateCardPurchaseWithDiscountInput) {
+    const { data: tarjeta, error: cardErr } = await supabase
+      .from('tarjetas')
+      .select('*')
+      .eq('id', data.tarjeta_id)
+      .eq('usuario_id', usuarioId)
+      .single()
+    if (cardErr || !tarjeta) throw new Error('Tarjeta no encontrada')
+    if (!(tarjeta as any).activa)
+      throw new Error(`La tarjeta "${(tarjeta as any).nombre}" está inactiva`)
+
+    await this.validateAccountActive(data.fondo_descuento_id)
+    const [{ data: fondoCuenta, error: errF }] = await Promise.all([
+      supabase
+        .from('cuentas')
+        .select('tipo, moneda, nombre, saldo_actual')
+        .eq('id', data.fondo_descuento_id)
+        .single(),
+    ])
+    if (errF || !fondoCuenta) throw new Error('Fondo de descuento no encontrado')
+    if ((fondoCuenta as any).tipo !== 'FONDO_DESCUENTO') {
+      throw new Error(
+        `La cuenta "${(fondoCuenta as any).nombre}" no es un fondo de descuento. Solo se permiten cuentas de tipo FONDO_DESCUENTO.`
+      )
+    }
+
+    const t = tarjeta as any
+    const montoTotal = data.monto_total
+    const cantidadCuotas = data.cantidad_cuotas ?? 1
+
+    const montoSubsidio = parseFloat((montoTotal * (data.porcentaje_descuento / 100)).toFixed(2))
+    const fondoDisponible = Number((fondoCuenta as any).saldo_actual)
+    const montoSubsidioReal = Math.min(montoSubsidio, fondoDisponible)
+    const montoPagado = parseFloat((montoTotal - montoSubsidioReal).toFixed(2))
+
+    const limiteDisponible = Number(t.limite_total) - Number(t.limite_comprometido)
+    if (limiteDisponible < montoPagado) {
+      throw new Error(
+        `Límite de crédito insuficiente en "${t.nombre}". Disponible: $${limiteDisponible.toFixed(2)}, Requerido: $${montoPagado.toFixed(2)}`
+      )
+    }
+
+    const montoPorCuotaBase = Math.round((montoPagado / cantidadCuotas) * 100) / 100
+    const sumaAnteriores = montoPorCuotaBase * (cantidadCuotas - 1)
+    const montoUltimaCuota = Math.round((montoPagado - sumaAnteriores) * 100) / 100
+
+    const fechaCompra = data.fecha ?? new Date()
+    const firstDueDate = this.computeFirstDueDate(fechaCompra, t.dia_cierre, t.dia_vencimiento)
+    const moneda = data.moneda ?? t.moneda
+    const metadata = {
+      monto_total: montoTotal,
+      porcentaje_descuento: data.porcentaje_descuento,
+    }
+    const descripcionBase = data.descripcion || 'Compra en tarjeta con descuento de fondo'
+
+    const movimientoId = randomUUID()
+
+    const { data: movimiento, error: movErr } = await supabase
+      .from('movimientos')
+      .insert({
+        id: movimientoId,
+        usuario_id: usuarioId,
+        tipo: 'GASTO_TARJETA_CON_DESCUENTO',
+        cuenta_id: t.cuenta_id,
+        tarjeta_id: t.id,
+        monto: montoPagado,
+        moneda,
+        descripcion: descripcionBase,
+        categoria: data.categoria,
+        fecha: fechaCompra,
+        tasa_conversion: data.tasa_conversion,
+        metadata,
+      })
+      .select('id')
+      .single()
+    assertSuccess(movimiento, movErr)
+
+    const { data: subsidioMov, error: errSubsidio } = await supabase
+      .from('movimientos')
+      .insert({
+        id: randomUUID(),
+        usuario_id: usuarioId,
+        tipo: 'SUBSIDIO',
+        cuenta_id: data.fondo_descuento_id,
+        monto: montoSubsidioReal,
+        moneda: (fondoCuenta as any).moneda,
+        descripcion: descripcionBase,
+        categoria: data.categoria,
+        fecha: fechaCompra,
+        movimiento_relacionado_id: (movimiento as any).id,
+        metadata,
+      })
+      .select('id')
+      .single()
+    assertSuccess(subsidioMov, errSubsidio)
+
+    const { error: linkErr } = await supabase
+      .from('movimientos')
+      .update({ movimiento_relacionado_id: (subsidioMov as any).id })
+      .eq('id', (movimiento as any).id)
+    assertOk(linkErr)
+
+    const compraId = randomUUID()
+    const { data: compra, error: compraErr } = await supabase
+      .from('compras_en_cuotas')
+      .insert({
+        id: compraId,
+        usuario_id: usuarioId,
+        tarjeta_id: t.id,
+        movimiento_id: (movimiento as any).id,
+        descripcion: descripcionBase,
+        monto_total: montoPagado,
+        cantidad_cuotas: cantidadCuotas,
+        monto_por_cuota: montoPorCuotaBase,
+        fecha_compra: fechaCompra,
+        categoria: data.categoria,
+      })
+      .select('id')
+      .single()
+    assertSuccess(compra, compraErr)
+
+    const cuotasData = Array.from({ length: cantidadCuotas }, (_, i) => ({
+      id: randomUUID(),
+      compra_id: (compra as any).id,
+      numero_cuota: i + 1,
+      monto: i === cantidadCuotas - 1 ? montoUltimaCuota : montoPorCuotaBase,
+      fecha_vencimiento: this.addMonths(firstDueDate, i),
+    }))
+    const { error: cuotaErr } = await supabase.from('cuotas').insert(cuotasData)
+    assertOk(cuotaErr)
+
+    await this.updateCardLimit(t.id, montoPagado)
+    await this.updateAccountBalance(data.fondo_descuento_id, -montoSubsidioReal)
+
+    return { gastoMovimiento: movimiento, subsidioMovimiento: subsidioMov, compra, cuotas_creadas: cantidadCuotas }
+  }
+
+  /**
    * Create card payment — RN-005 (FIFO installment clearing)
    */
   async createCardPayment(usuarioId: string, data: CreateCardPaymentInput) {
@@ -762,6 +905,7 @@ export class MovementsService {
           mov.tipo === 'PAGO_DEUDA' ||
           mov.tipo === 'INVERSION' ||
           mov.tipo === 'GASTO_CON_DESCUENTO' ||
+          mov.tipo === 'GASTO_TARJETA_CON_DESCUENTO' ||
           mov.tipo === 'SUBSIDIO' ||
           (mov.tipo === 'TRANSFERENCIA' && mov.cuenta_id === query.cuenta_id) ||
           (mov.tipo === 'AJUSTE' && Number(mov.monto) < 0)
@@ -908,8 +1052,8 @@ export class MovementsService {
       return { message: 'Movimiento eliminado exitosamente' }
     }
 
-    // ── GASTO_CON_DESCUENTO / SUBSIDIO ─────────────────────────────────────────
-    if (mov.tipo === 'GASTO_CON_DESCUENTO' || mov.tipo === 'SUBSIDIO') {
+    // ── GASTO_CON_DESCUENTO / GASTO_TARJETA_CON_DESCUENTO / SUBSIDIO ─────────────────
+    if (mov.tipo === 'GASTO_CON_DESCUENTO' || mov.tipo === 'GASTO_TARJETA_CON_DESCUENTO' || mov.tipo === 'SUBSIDIO') {
       if (relatedMovement) {
         // Restore both account balances
         await this.updateAccountBalance(mov.cuenta_id, monto)
@@ -999,7 +1143,7 @@ export class MovementsService {
     assertOk(error)
 
     const INCOME_TYPES = new Set(['INGRESO', 'RETORNO_INVERSION', 'COBRO_DEUDA'])
-    const EXPENSE_TYPES = new Set(['GASTO', 'PAGO_TARJETA', 'PAGO_DEUDA', 'GASTO_CON_DESCUENTO'])
+    const EXPENSE_TYPES = new Set(['GASTO', 'PAGO_TARJETA', 'PAGO_DEUDA', 'GASTO_CON_DESCUENTO', 'GASTO_TARJETA_CON_DESCUENTO'])
 
     let totalIngresos = 0
     let totalGastos = 0

@@ -173,7 +173,19 @@ export default function Movements() {
     let endpoint: string
     let body: unknown
 
-    if (data.tipo === 'TARJETA') {
+    if (data.tipo === 'TARJETA' && data.descuento_activo && data.fondo_descuento_id) {
+      endpoint = '/api/movements/compra-tarjeta-descuento'
+      body = {
+        tarjeta_id: data.tarjeta_id,
+        monto_total: data.monto,
+        porcentaje_descuento: data.porcentaje_descuento,
+        fondo_descuento_id: data.fondo_descuento_id,
+        cantidad_cuotas: data.cantidad_cuotas ?? 1,
+        descripcion: data.descripcion || 'Compra con tarjeta',
+        categoria: data.categoria,
+        fecha: data.fecha,
+      }
+    } else if (data.tipo === 'TARJETA') {
       endpoint = '/api/movements/compra-tarjeta'
       body = {
         tarjeta_id: data.tarjeta_id,

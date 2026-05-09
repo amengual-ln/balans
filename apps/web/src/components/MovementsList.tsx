@@ -11,7 +11,7 @@ type FilterGroup = '' | 'income' | 'expense' | 'transfer';
 
 const INCOME_TYPES = new Set<TipoMovimiento>(['INGRESO', 'RETORNO_INVERSION', 'INGRESO_INICIAL', 'COBRO_DEUDA']);
 const EXPENSE_TYPES = new Set<TipoMovimiento>([
-  'GASTO', 'PAGO_TARJETA', 'GASTO_TARJETA', 'PAGO_DEUDA', 'INVERSION', 'GASTO_CON_DESCUENTO',
+  'GASTO', 'PAGO_TARJETA', 'GASTO_TARJETA', 'GASTO_TARJETA_CON_DESCUENTO', 'PAGO_DEUDA', 'INVERSION', 'GASTO_CON_DESCUENTO',
 ]);
 
 function getAmountClass(tipo: TipoMovimiento): string {
@@ -71,7 +71,7 @@ function MovementRow({ movement, subsidio, onEdit }: { movement: Movement; subsi
 
   const isTransfer = movement.tipo === 'TRANSFERENCIA';
   const isCardMovement =
-    movement.tipo === 'GASTO_TARJETA' || movement.tipo === 'PAGO_TARJETA';
+    movement.tipo === 'GASTO_TARJETA' || movement.tipo === 'GASTO_TARJETA_CON_DESCUENTO' || movement.tipo === 'PAGO_TARJETA';
   const isDebtMovement = movement.tipo === 'PAGO_DEUDA' || movement.tipo === 'COBRO_DEUDA';
 
   const EDITABLE_TYPES = new Set(['INGRESO', 'GASTO', 'TRANSFERENCIA', 'AJUSTE', 'INGRESO_INICIAL']);
@@ -291,7 +291,7 @@ export default function MovementsList({ movements, isLoading, onEditMovement }: 
                   <MovementRow
                     key={m.id}
                     movement={m}
-                    subsidio={m.tipo === 'GASTO_CON_DESCUENTO' ? subsidioMap.get(m.id) : undefined}
+                    subsidio={['GASTO_CON_DESCUENTO', 'GASTO_TARJETA_CON_DESCUENTO'].includes(m.tipo) ? subsidioMap.get(m.id) : undefined}
                     onEdit={onEditMovement}
                   />
                 ))}

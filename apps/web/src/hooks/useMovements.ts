@@ -6,6 +6,7 @@ type TipoMovimiento =
   | 'TRANSFERENCIA'
   | 'PAGO_TARJETA'
   | 'GASTO_TARJETA'
+  | 'GASTO_TARJETA_CON_DESCUENTO'
   | 'PAGO_DEUDA'
   | 'COBRO_DEUDA'
   | 'INVERSION'
