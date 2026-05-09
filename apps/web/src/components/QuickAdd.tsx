@@ -194,9 +194,9 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
           tipo === 'TRANSFERENCIA' && tasaConversion ? parseFloat(tasaConversion) : undefined,
         descripcion: descripcion.trim() || undefined,
         fecha: fechaActiva && fecha ? new Date(fecha + 'T12:00:00').toISOString() : undefined,
-        descuento_activo: !isCard && descuentoActivo && tipo === 'GASTO',
-        porcentaje_descuento: !isCard && descuentoActivo ? porcentajeDescuento : undefined,
-        fondo_descuento_id: !isCard && descuentoActivo ? fondoDescuentoId : undefined,
+        descuento_activo: descuentoActivo && tipo === 'GASTO' ? true : isCard ? descuentoActivo : false,
+        porcentaje_descuento: descuentoActivo ? porcentajeDescuento : undefined,
+        fondo_descuento_id: descuentoActivo ? fondoDescuentoId : undefined,
         tarjeta_id: isCard ? cardId : undefined,
         cantidad_cuotas: isCard ? cantidadCuotas : undefined,
       };
