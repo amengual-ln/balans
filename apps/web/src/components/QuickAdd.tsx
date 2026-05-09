@@ -611,7 +611,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
             </div>
 
             {/* Discount fund section — for regular gastos and card purchases */}
-            {(tipo === 'GASTO' && !isCardSelected) || (isCardSelected && discountFunds.length > 0) && (
+            {(tipo === 'GASTO' && !isCardSelected) || (isCardSelected && discountFunds.length > 0) ? (
               <div className="mb-4">
                 {/* Toggle */}
                 <label
@@ -714,7 +714,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
 
             {/* Category pills — hidden for transfers */}
             {tipo !== 'TRANSFERENCIA' && <div className="mb-6">
