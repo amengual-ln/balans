@@ -16,13 +16,13 @@ export class CardsService {
         cuenta_asociada:cuentas!cuenta_id(nombre, moneda, saldo_actual),
         compras_en_cuotas!tarjeta_id(
           id,
+          cantidad_cuotas,
           cuotas!compra_id(
             id,
             monto,
             fecha_vencimiento,
             pagada,
-            numero_cuota,
-            cantidad_cuotas
+            numero_cuota
           )
         )
       `
@@ -54,7 +54,7 @@ export class CardsService {
               fecha: proximo.fecha_vencimiento,
               cuotas_pendientes: unpaidCuotas.length,
               numero_cuota: proximo.numero_cuota,
-              total_cuotas: proximo.cantidad_cuotas,
+              total_cuotas: proximo.compra?.cantidad_cuotas ?? 0,
             }
           : null,
       }
