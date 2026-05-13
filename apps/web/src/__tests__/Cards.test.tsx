@@ -1,0 +1,88 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+import Cards from '../pages/Cards'
+
+vi.mock('swr', () => ({ mutate: vi.fn(), useSWRConfig: vi.fn(() => ({ mutate: vi.fn() })) }))
+
+const mockCards = [
+  { id: 'c1', nombre: 'Visa Galicia', tipo: 'VISA', moneda: 'ARS', limite_total: 100000, limite_comprometido: 20000, activa: true, limite_disponible: 80000 },
+  { id: 'c2', nombre: 'Mastercard', tipo: 'MASTERCARD', moneda: 'USD', limite_total: 50000, limite_comprometido: 0, activa: true, limite_disponible: 50000 },
+  { id: 'c3', nombre: 'Amex Inactiva', tipo: 'AMEX', moneda: 'ARS', limite_total: 20000, limite_comprometido: 0, activa: false, limite_disponible: 20000 },
+]
+
+const mockAccounts = [
+  { id: 'a1', nombre: 'Banco Galicia', tipo: 'BANCO', moneda: 'ARS', saldo_actual: 100000, activa: true },
+]
+
+const mockUseCards = vi.fn(() => ({ cards: mockCards, isLoading: false, mutate: vi.fn() }))
+vi.mock('@/hooks/useCards', () => ({
+  useCards: () => mockUseCards(),
+}))
+
+const mockUseAccounts = vi.fn(() => ({ accounts: mockAccounts, mutate: vi.fn() }))
+vi.mock('@/hooks/useAccounts', () => ({
+  useAccounts: () => mockUseAccounts(),
+}))
+
+vi.mock('@/hooks/useAPI', () => ({
+  apiPost: vi.fn().mockResolvedValue({}),
+}))
+
+const renderPage = () =>
+  render(<Cards />, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter> })
+
+describe('Cards', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('rendering', () => {
+    it('renders page title', () => {
+      renderPage()
+      expect(screen.getByRole('heading', { name: 'Tarjetas' })).toBeInTheDocument()
+    })
+
+    it('renders card items', () => {
+      renderPage()
+      expect(screen.getByText('Visa Galicia')).toBeInTheDocument()
+      expect(screen.getByText('Mastercard')).toBeInTheDocument()
+    })
+
+    it('renders totals banner', () => {
+      renderPage()
+      expect(screen.getByText(/total comprometido/i)).toBeInTheDocument()
+    })
+
+    it('renders nueva tarjeta button', () => {
+      renderPage()
+      expect(screen.getByRole('button', { name: /nueva tarjeta/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('empty state', () => {
+    it('shows empty state when no cards', () => {
+      mockUseCards.mockReturnValueOnce({ cards: [], isLoading: false, mutate: vi.fn() })
+      renderPage()
+      expect(screen.getByText('💳')).toBeInTheDocument()
+      expect(screen.getByText(/sin tarjetas todavía/i)).toBeInTheDocument()
+    })
+  })
+
+  describe('inactive cards', () => {
+    it('shows inactive section', () => {
+      renderPage()
+      expect(screen.getByText(/inactivas/i)).toBeInTheDocument()
+      expect(screen.getByText('Amex Inactiva')).toBeInTheDocument()
+    })
+  })
+
+  describe('nueva tarjeta form', () => {
+    it('opens form on nueva tarjeta click', async () => {
+      renderPage()
+      await userEvent.click(screen.getByRole('button', { name: /nueva tarjeta/i }))
+      expect(screen.getByRole('heading', { name: /nueva tarjeta/i })).toBeInTheDocument()
+    })
+  })
+})
