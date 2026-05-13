@@ -157,6 +157,36 @@ describe('MovementsList', () => {
     })
   })
 
+  describe('filter by description', () => {
+    it('filters by description text', async () => {
+      renderList({ movements: [baseMovement, movimientoTarjeta], isLoading: false })
+      await userEvent.type(screen.getByPlaceholderText(/descripción/i), 'super')
+      expect(screen.getByText('Supermercado')).toBeInTheDocument()
+      expect(screen.queryByText('Restaurante')).not.toBeInTheDocument()
+    })
+
+    it('description filter is case-insensitive', async () => {
+      renderList({ movements: [baseMovement, movimientoTarjeta], isLoading: false })
+      await userEvent.type(screen.getByPlaceholderText(/descripción/i), 'SUPER')
+      expect(screen.getByText('Supermercado')).toBeInTheDocument()
+      expect(screen.queryByText('Restaurante')).not.toBeInTheDocument()
+    })
+
+    it('shows empty state when description filter matches nothing', async () => {
+      renderList({ movements: [baseMovement], isLoading: false })
+      await userEvent.type(screen.getByPlaceholderText(/descripción/i), 'xyz')
+      expect(screen.getByText(/sin resultados/i)).toBeInTheDocument()
+    })
+
+    it('filters by description combined with type filter', async () => {
+      renderList({ movements: [baseMovement, movimientoIngreso], isLoading: false })
+      await userEvent.selectOptions(screen.getByRole('combobox'), 'expense')
+      await userEvent.type(screen.getByPlaceholderText(/descripción/i), 'super')
+      expect(screen.getByText('Supermercado')).toBeInTheDocument()
+      expect(screen.queryByText('Salario')).not.toBeInTheDocument()
+    })
+  })
+
   describe('clear filters', () => {
     it('shows clear button when filters active', async () => {
       renderList({ movements: [baseMovement], isLoading: false })
@@ -170,6 +200,20 @@ describe('MovementsList', () => {
       await userEvent.click(screen.getByRole('button', { name: /limpiar/i }))
       expect(screen.getByText('Supermercado')).toBeInTheDocument()
       expect(screen.getByText('Salario')).toBeInTheDocument()
+    })
+
+    it('shows clear button when description filter is active', async () => {
+      renderList({ movements: [baseMovement], isLoading: false })
+      await userEvent.type(screen.getByPlaceholderText(/descripción/i), 'super')
+      expect(screen.getByRole('button', { name: /limpiar/i })).toBeInTheDocument()
+    })
+
+    it('clears description filter on clear button', async () => {
+      renderList({ movements: [baseMovement], isLoading: false })
+      await userEvent.type(screen.getByPlaceholderText(/descripción/i), 'super')
+      await userEvent.click(screen.getByRole('button', { name: /limpiar/i }))
+      expect(screen.getByText('Supermercado')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /limpiar/i })).not.toBeInTheDocument()
     })
   })
 

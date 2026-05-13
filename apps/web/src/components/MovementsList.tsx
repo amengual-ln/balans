@@ -214,6 +214,7 @@ interface MovementsListProps {
 export default function MovementsList({ movements, isLoading, onEditMovement }: MovementsListProps) {
   const [filterGroup, setFilterGroup] = useState<FilterGroup>('');
   const [filterCategoria, setFilterCategoria] = useState('');
+  const [filterDescripcion, setFilterDescripcion] = useState('');
 
   const subsidioMap = new Map<string, Movement>();
   movements.forEach((m) => {
@@ -231,11 +232,15 @@ export default function MovementsList({ movements, isLoading, onEditMovement }: 
       const haystack = m.categoria?.toLowerCase() ?? '';
       if (!haystack.includes(filterCategoria.toLowerCase())) return false;
     }
+    if (filterDescripcion) {
+      const haystack = m.descripcion?.toLowerCase() ?? '';
+      if (!haystack.includes(filterDescripcion.toLowerCase())) return false;
+    }
     return true;
   });
 
   const grouped = groupByDate(filtered);
-  const hasFilters = filterGroup !== '' || filterCategoria !== '';
+  const hasFilters = filterGroup !== '' || filterCategoria !== '' || filterDescripcion !== '';
 
   return (
     <div>
@@ -263,9 +268,17 @@ export default function MovementsList({ movements, isLoading, onEditMovement }: 
           className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
         />
 
+        <input
+          type="text"
+          value={filterDescripcion}
+          onChange={(e) => setFilterDescripcion(e.target.value)}
+          placeholder="Descripción..."
+          className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none"
+        />
+
         {hasFilters && (
           <button
-            onClick={() => { setFilterGroup(''); setFilterCategoria(''); }}
+            onClick={() => { setFilterGroup(''); setFilterCategoria(''); setFilterDescripcion(''); }}
             className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-secondary transition-colors hover:border-gray-400 hover:text-text-primary"
           >
             <X className="h-3.5 w-3.5" />
