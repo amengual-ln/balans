@@ -33,30 +33,40 @@ export class CardsService {
     assertOk(error)
 
     return (data ?? []).map((card: any) => {
-      const unpaidCuotas = card.compras_en_cuotas
-        ?.flatMap((compra: any) => compra.cuotas ?? [])
+      const allUnpaid = card.compras_en_cuotas
+        ?.flatMap((compra: any) => (compra.cuotas ?? []).map((c: any) => ({ ...c, compra })))
         ?.filter((c: any) => !c.pagada)
-        ?.sort(
-          (a: any, b: any) =>
-            new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime()
-        )
 
-      const proximo = unpaidCuotas?.[0]
+      const byCompra = new Map<string, any>()
+      for (const cuota of allUnpaid ?? []) {
+        const existing = byCompra.get(cuota.compra_id)
+        if (!existing || new Date(cuota.fecha_vencimiento) < new Date(existing.fecha_vencimiento)) {
+          byCompra.set(cuota.compra_id, cuota)
+        }
+      }
+
+      const nextCuotas = Array.from(byCompra.values()).sort(
+        (a, b) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime()
+      )
+
+      const totalProximoPago = nextCuotas.reduce((sum, c) => sum + Number(c.monto), 0)
+      const proximo = nextCuotas[0]
 
       return {
         ...card,
         _count: { compras_en_cuotas: card.compras_en_cuotas?.length ?? 0 },
         limite_disponible: Number(card.limite_total) - Number(card.limite_comprometido),
-        proximo_pago: proximo
-          ? {
-              monto: Number(proximo.monto),
-              moneda: card.moneda,
-              fecha: proximo.fecha_vencimiento,
-              cuotas_pendientes: unpaidCuotas.length,
-              numero_cuota: proximo.numero_cuota,
-              total_cuotas: proximo.compra?.cantidad_cuotas ?? 0,
-            }
-          : null,
+        proximo_pago:
+          totalProximoPago > 0
+            ? {
+                monto: totalProximoPago,
+                moneda: card.moneda,
+                fecha: proximo.fecha_vencimiento,
+                cuotas_pendientes: allUnpaid?.length ?? 0,
+                numero_cuota: proximo.numero_cuota,
+                total_cuotas: proximo.compra?.cantidad_cuotas ?? 0,
+              }
+            : null,
       }
     })
   }

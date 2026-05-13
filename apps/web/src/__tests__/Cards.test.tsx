@@ -108,7 +108,7 @@ describe('Cards', () => {
       expect(screen.queryByText(/siguiente pago/i)).not.toBeInTheDocument()
     })
 
-    it('shows nearest cuota across multiple cards', () => {
+    it('shows nearest card and its aggregated next payment monto', () => {
       const laterDate = '2026-07-15'
       const nearerDate = '2026-06-01'
       const cardsMultiple = [
@@ -124,6 +124,26 @@ describe('Cards', () => {
       mockUseCards.mockReturnValueOnce({ cards: cardsMultiple, isLoading: false, mutate: vi.fn() })
       renderPage()
       expect(screen.getByText(/3 cuotas/i)).toBeInTheDocument()
+    })
+
+    it('renders next payment monto as sum of one cuota per purchase on the nearest card', () => {
+      const cardsWithAggregation = [
+        {
+          ...mockCards[0],
+          proximo_pago: {
+            monto: 4500,
+            moneda: 'ARS',
+            fecha: '2026-06-01',
+            cuotas_pendientes: 4,
+            numero_cuota: 1,
+            total_cuotas: 3,
+          },
+        },
+      ]
+      mockUseCards.mockReturnValueOnce({ cards: cardsWithAggregation, isLoading: false, mutate: vi.fn() })
+      renderPage()
+      expect(screen.getByText(/siguiente pago/i)).toBeInTheDocument()
+      expect(screen.getByText('4.500')).toBeInTheDocument()
     })
   })
 
