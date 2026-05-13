@@ -4,13 +4,13 @@ import { ArrowLeftRight, Building2, CreditCard, MoreVertical, Landmark, RefreshC
 
 const PRIMARY_ITEMS = [
   { to: '/movements', label: 'Movimientos', Icon: ArrowLeftRight },
-  { to: '/accounts', label: 'Cuentas', Icon: Building2 },
+  { to: '/subscriptions', label: 'Suscripciones', Icon: RefreshCw },
   { to: '/cards', label: 'Tarjetas', Icon: CreditCard },
 ];
 
 const OVERFLOW_ITEMS = [
+  { to: '/accounts', label: 'Cuentas', Icon: Building2 },
   { to: '/debts', label: 'Deudas', Icon: Landmark },
-  { to: '/subscriptions', label: 'Suscripciones', Icon: RefreshCw },
   { to: '/investments', label: 'Inversiones', Icon: TrendingUp },
 ];
 

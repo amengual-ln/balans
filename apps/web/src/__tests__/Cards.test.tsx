@@ -78,6 +78,55 @@ describe('Cards', () => {
     })
   })
 
+  describe('next payment', () => {
+    it('renders next payment line when proximo_pago exists', () => {
+      const cardsWithProximo = [
+        {
+          ...mockCards[0],
+          proximo_pago: {
+            monto: 5000,
+            moneda: 'ARS',
+            fecha: '2026-06-15',
+            cuotas_pendientes: 3,
+            numero_cuota: 2,
+            total_cuotas: 3,
+          },
+        },
+      ]
+      mockUseCards.mockReturnValueOnce({ cards: cardsWithProximo, isLoading: false, mutate: vi.fn() })
+      renderPage()
+      expect(screen.getByText(/siguiente pago/i)).toBeInTheDocument()
+      expect(screen.getByText(/3 cuotas/i)).toBeInTheDocument()
+    })
+
+    it('does not render next payment line when no proximo_pago', () => {
+      const cardsNoProximo = [
+        { ...mockCards[0], proximo_pago: null },
+      ]
+      mockUseCards.mockReturnValueOnce({ cards: cardsNoProximo, isLoading: false, mutate: vi.fn() })
+      renderPage()
+      expect(screen.queryByText(/siguiente pago/i)).not.toBeInTheDocument()
+    })
+
+    it('shows nearest cuota across multiple cards', () => {
+      const laterDate = '2026-07-15'
+      const nearerDate = '2026-06-01'
+      const cardsMultiple = [
+        {
+          ...mockCards[0],
+          proximo_pago: { monto: 1000, moneda: 'ARS', fecha: laterDate, cuotas_pendientes: 2, numero_cuota: 1, total_cuotas: 2 },
+        },
+        {
+          ...mockCards[1],
+          proximo_pago: { monto: 3000, moneda: 'USD', fecha: nearerDate, cuotas_pendientes: 3, numero_cuota: 1, total_cuotas: 3 },
+        },
+      ]
+      mockUseCards.mockReturnValueOnce({ cards: cardsMultiple, isLoading: false, mutate: vi.fn() })
+      renderPage()
+      expect(screen.getByText(/3 cuotas/i)).toBeInTheDocument()
+    })
+  })
+
   describe('nueva tarjeta form', () => {
     it('opens form on nueva tarjeta click', async () => {
       renderPage()

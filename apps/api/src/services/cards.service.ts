@@ -14,7 +14,17 @@ export class CardsService {
         `
         *,
         cuenta_asociada:cuentas!cuenta_id(nombre, moneda, saldo_actual),
-        compras_en_cuotas!tarjeta_id(count)
+        compras_en_cuotas!tarjeta_id(
+          id,
+          cuotas!compra_id(
+            id,
+            monto,
+            fecha_vencimiento,
+            pagada,
+            numero_cuota,
+            cantidad_cuotas
+          )
+        )
       `
       )
       .eq('usuario_id', usuarioId)
@@ -23,11 +33,30 @@ export class CardsService {
     assertOk(error)
 
     return (data ?? []).map((card: any) => {
-      const { compras_en_cuotas: comprasArr, ...rest } = card
+      const unpaidCuotas = card.compras_en_cuotas
+        ?.flatMap((compra: any) => compra.cuotas ?? [])
+        ?.filter((c: any) => !c.pagada)
+        ?.sort(
+          (a: any, b: any) =>
+            new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime()
+        )
+
+      const proximo = unpaidCuotas?.[0]
+
       return {
-        ...rest,
-        _count: { compras_en_cuotas: comprasArr?.[0]?.count ?? 0 },
+        ...card,
+        _count: { compras_en_cuotas: card.compras_en_cuotas?.length ?? 0 },
         limite_disponible: Number(card.limite_total) - Number(card.limite_comprometido),
+        proximo_pago: proximo
+          ? {
+              monto: Number(proximo.monto),
+              moneda: card.moneda,
+              fecha: proximo.fecha_vencimiento,
+              cuotas_pendientes: unpaidCuotas.length,
+              numero_cuota: proximo.numero_cuota,
+              total_cuotas: proximo.cantidad_cuotas,
+            }
+          : null,
       }
     })
   }

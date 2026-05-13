@@ -45,7 +45,13 @@ function SkeletonCard() {
 
 // ─── Totals banner ────────────────────────────────────────────────────────────
 
-function TotalsBanner({ cards }: { cards: Card[] }) {
+interface NextPayment {
+  monto: number;
+  moneda: string;
+  cuotas_pendientes: number;
+}
+
+function TotalsBanner({ cards, nextPayment }: { cards: Card[]; nextPayment?: NextPayment }) {
   const totals: Record<string, number> = {};
   for (const card of cards) {
     if (!card.activa) continue;
@@ -78,6 +84,26 @@ function TotalsBanner({ cards }: { cards: Card[] }) {
           </div>
         ))}
       </div>
+
+      {nextPayment && (
+        <div className="mt-3 border-t border-border pt-3">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
+            Siguiente pago
+          </p>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-sm text-text-secondary">{nextPayment.moneda}</span>
+            <span className="text-lg font-bold tabular-nums text-text-primary">
+              {new Intl.NumberFormat('es-AR', {
+                minimumFractionDigits: 0,
+              }).format(nextPayment.monto)}
+            </span>
+            <span className="text-sm text-text-secondary">
+              · {nextPayment.cuotas_pendientes} cuota
+              {nextPayment.cuotas_pendientes !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -306,7 +332,31 @@ export default function Cards() {
           </button>
         </div>
 
-        {!isLoading && cards.length > 0 && <TotalsBanner cards={cards} />}
+        {!isLoading && cards.length > 0 && (
+          (() => {
+            const next = cards
+              .filter((c) => c.activa && c.proximo_pago)
+              .sort(
+                (a, b) =>
+                  new Date(a.proximo_pago!.fecha).getTime() -
+                  new Date(b.proximo_pago!.fecha).getTime()
+              )[0]
+            return (
+              <TotalsBanner
+                cards={cards}
+                nextPayment={
+                  next
+                    ? {
+                        monto: next.proximo_pago!.monto,
+                        moneda: next.proximo_pago!.moneda,
+                        cuotas_pendientes: next.proximo_pago!.cuotas_pendientes,
+                      }
+                    : undefined
+                }
+              />
+            )
+          })()
+        )}
 
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3">

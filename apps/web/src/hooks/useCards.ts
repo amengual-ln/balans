@@ -1,5 +1,14 @@
 import { useAPI } from './useAPI';
 
+export interface ProximoPago {
+  monto: number;
+  moneda: string;
+  fecha: string;
+  cuotas_pendientes: number;
+  numero_cuota: number;
+  total_cuotas: number;
+}
+
 export interface Card {
   id: string;
   nombre: string;
@@ -14,6 +23,7 @@ export interface Card {
   cuenta_id: string;
   cuenta_asociada?: { nombre: string; moneda: string };
   _count?: { compras_en_cuotas: number };
+  proximo_pago?: ProximoPago | null;
 }
 
 export function useCards() {
