@@ -79,11 +79,11 @@ export default function PrecioMercadoModal({
             </label>
             <input
               type="number"
-              step="0.01"
+              step="0.00001"
               autoFocus
               placeholder="0.00"
               {...form.register('precio')}
-              className="w-full rounded-lg border border-border px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full rounded-lg border border-border px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
             {form.formState.errors.precio && (
               <p className="text-sm text-negative">{form.formState.errors.precio.message}</p>
