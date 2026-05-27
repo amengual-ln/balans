@@ -6,6 +6,9 @@ function resetStore() {
   Object.keys(mockStore).forEach(k => delete mockStore[k])
 }
 
+type MockCb = (value: { data: any; error: any; count?: number }) => void
+type MockCbEmpty = (value: { error: any }) => void
+
 vi.mock('../lib/supabase.js', () => {
   return {
     supabase: {
@@ -43,7 +46,7 @@ vi.mock('../lib/supabase.js', () => {
             }
             return api
           },
-          then(onFulfilled: Function) {
+          then(onFulfilled: MockCb) {
             const result = runFilters(tableData)
             Promise.resolve({ data: result, error: null, count: result.length }).then(onFulfilled)
             return api
@@ -75,7 +78,7 @@ vi.mock('../lib/supabase.js', () => {
                     }
                     return Promise.resolve({ data: null, error: { code: 'PGRST116' } })
                   },
-                  then(onFulfilled: Function) {
+                  then(onFulfilled: MockCb) {
                     mockStore[table] = mockStore[table]?.map(r =>
                       r[field] === value ? { ...r, ...updateApi._data } : r
                     )
@@ -84,7 +87,7 @@ vi.mock('../lib/supabase.js', () => {
                   },
                 }
               },
-              in() { return { then(cb: Function) { cb({ error: null }) } } }
+              in() { return { then(cb: MockCbEmpty) { cb({ error: null }) } } }
             }
           },
           _data: null as any,
@@ -93,14 +96,14 @@ vi.mock('../lib/supabase.js', () => {
         const deleteApi: any = {
           eq(field: string, value: any) {
             return {
-              then(onFulfilled: Function) {
+              then(onFulfilled: MockCbEmpty) {
                 mockStore[table] = mockStore[table]?.filter(r => r[field] !== value)
                 Promise.resolve({ error: null }).then(onFulfilled)
                 return { then: () => {} }
               },
               select() {
                 return {
-                  then(onFulfilled: Function) {
+                  then(onFulfilled: MockCbEmpty) {
                     mockStore[table] = mockStore[table]?.filter(r => r[field] !== value)
                     Promise.resolve({ error: null }).then(onFulfilled)
                     return { then: () => {} }
@@ -109,7 +112,7 @@ vi.mock('../lib/supabase.js', () => {
               },
             }
           },
-          in() { return { then(cb: Function) { cb({ error: null }) } } },
+          in() { return { then(cb: MockCbEmpty) { cb({ error: null }) } } },
         }
 
         return {

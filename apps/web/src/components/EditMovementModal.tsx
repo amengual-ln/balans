@@ -108,13 +108,25 @@ export default function EditMovementModal({ movement, onClose, onSuccess, onDele
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-text-primary">Categoría</label>
-            <input
-              type="text"
+            <label htmlFor="categoria" className="block text-sm font-medium text-text-primary">Categoría</label>
+            <select
+              id="categoria"
               {...form.register('categoria')}
-              placeholder="Ej: Alimentación, Transporte"
-              className="w-full rounded-lg border border-border px-3 py-2 text-text-primary placeholder:text-text-secondary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">Sin categoría</option>
+              <option value="comida">🍽️ Comida</option>
+              <option value="transporte">🚗 Transporte</option>
+              <option value="entretenimiento">🎬 Ocio</option>
+              <option value="servicios">💡 Servicios</option>
+              <option value="salud">⚕️ Salud</option>
+              <option value="compras">🛍️ Compras</option>
+              <option value="ropa">👕 Ropa</option>
+              <option value="hogar">🏠 Hogar</option>
+              <option value="musica_banda">🎸 Musica/Banda</option>
+              <option value="innecesario">🐜 Innecesario</option>
+              <option value="otros">📦 Otros</option>
+            </select>
             {form.formState.errors.categoria && (
               <p className="text-sm text-negative">{form.formState.errors.categoria.message}</p>
             )}

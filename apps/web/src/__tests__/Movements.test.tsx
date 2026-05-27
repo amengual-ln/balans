@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import Movements from '../pages/Movements'
 
@@ -73,7 +72,7 @@ describe('Movements', () => {
 
   describe('loading states', () => {
     it('shows balance skeleton when stats loading', () => {
-      mockUseStats.mockReturnValueOnce({ stats: null, isLoading: true, mutate: vi.fn() })
+      mockUseStats.mockReturnValueOnce({ stats: null as unknown as { ingresos: number; gastos: number; balance: number }, isLoading: true, mutate: vi.fn() })
       renderPage()
       expect(document.querySelector('[class*="animate-pulse"]')).toBeInTheDocument()
     })

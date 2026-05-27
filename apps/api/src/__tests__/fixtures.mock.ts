@@ -149,6 +149,9 @@ export const mockCompra = (overrides = {}) => ({
   ...overrides,
 })
 
+type MockCb = (result: { data: unknown; error: unknown; count?: number }) => void
+type MockEmptyCb = () => void
+
 export function createMockSupabaseClient(fixtures: {
   accounts?: any[]
   cards?: any[]
@@ -180,44 +183,43 @@ export function createMockSupabaseClient(fixtures: {
     pagos_deuda: fixtures.pagos_deuda ?? [],
   }
 
-  function query(table: string) {
+  function query(_table: string) {
     return {
       select: (_cols?: string, _opts?: any) => ({
-        eq: (field: string, value: any) => ({
+        eq: (field: string, _value: any) => ({
           single: () => {
-            const item = store[table]?.find((r: any) => r[field] === value)
+            const item = store[_table]?.find((r: any) => r[field] === _value)
             return Promise.resolve({ data: item ?? null, error: item ? null : { code: 'PGRST116', message: 'Not found' } })
           },
-          then: (cb: Function) => cb({ data: store[table]?.filter((r: any) => r[field] === value) ?? [], error: null }),
+          then: (cb: MockCb) => cb({ data: store[_table]?.filter((r: any) => r[field] === _value) ?? [], error: null }),
         }),
-        in: (field: string, _values: any[]) => ({
+        in: (_field: string, _values: any[]) => ({
           order: (_field: string, _opts: any) => ({
-            then: (cb: Function) => cb({ data: store[table] ?? [], error: null }),
+            then: (cb: MockCb) => cb({ data: store[_table] ?? [], error: null }),
           }),
         }),
         or: (_cond: string) => ({
-          then: (cb: Function) => cb({ data: store[table] ?? [], error: null }),
+          then: (cb: MockCb) => cb({ data: store[_table] ?? [], error: null }),
           order: (_f: string, _o: any) => ({
             range: (_a: number, _b: number) => ({
-              then: (cb: Function) => cb({ data: store[table] ?? [], error: null, count: store[table]?.length ?? 0 }),
+              then: (cb: MockCb) => cb({ data: store[_table] ?? [], error: null, count: store[_table]?.length ?? 0 }),
             }),
           }),
         }),
-        then: (cb: Function) => cb({ data: store[table] ?? [], error: null, count: store[table]?.length ?? 0 }),
+        then: (cb: MockCb) => cb({ data: store[_table] ?? [], error: null, count: store[_table]?.length ?? 0 }),
         order: (_field: string, _opts: any) => ({
           range: (_a: number, _b: number) => ({
-            then: (cb: Function) => cb({ data: store[table] ?? [], error: null, count: store[table]?.length ?? 0 }),
-            then: (cb: Function) => cb({ data: store[table] ?? [], error: null, count: store[table]?.length ?? 0 }),
+            then: (cb: MockCb) => cb({ data: store[_table] ?? [], error: null, count: store[_table]?.length ?? 0 }),
           }),
-          then: (cb: Function) => cb({ data: store[table] ?? [], error: null, count: store[table]?.length ?? 0 }),
+          then: (cb: MockCb) => cb({ data: store[_table] ?? [], error: null, count: store[_table]?.length ?? 0 }),
         }),
       }),
       insert: (data: any) => ({
         select: () => ({
           single: () => {
             const record = { id: 'generated-id', ...data }
-            if (!store[table]) store[table] = []
-            store[table].push(record)
+            if (!store[_table]) store[_table] = []
+            store[_table].push(record)
             return Promise.resolve({ data: record, error: null })
           },
         }),
@@ -226,25 +228,25 @@ export function createMockSupabaseClient(fixtures: {
         eq: (field: string, value: any) => ({
           select: () => ({
             single: () => {
-              const idx = store[table]?.findIndex((r: any) => r[field] === value)
+              const idx = store[_table]?.findIndex((r: any) => r[field] === value)
               if (idx !== undefined && idx >= 0) {
-                store[table][idx] = { ...store[table][idx], ...data }
-                return Promise.resolve({ data: store[table][idx], error: null })
+                store[_table][idx] = { ...store[_table][idx], ...data }
+                return Promise.resolve({ data: store[_table][idx], error: null })
               }
               return Promise.resolve({ data: null, error: { code: 'PGRST116', message: 'Not found' } })
             },
-            then: (cb: Function) => cb({ data: store[table]?.map((r: any) => r[field] === value ? { ...r, ...data } : r), error: null }),
+            then: (cb: MockCb) => cb({ data: store[_table]?.map((r: any) => r[field] === value ? { ...r, ...data } : r), error: null }),
           }),
           in: (_field: string, _values: string[]) => {
             return {
-              then: (cb: Function) => cb({ error: null }),
+              then: (cb: MockEmptyCb) => cb(),
             }
           },
         }),
       }),
       delete: () => ({
         eq: (field: string, value: any) => {
-          store[table] = store[table]?.filter((r: any) => r[field] !== value)
+          store[_table] = store[_table]?.filter((r: any) => r[field] !== value)
           return Promise.resolve({ error: null })
         },
       }),

@@ -17,6 +17,7 @@ describe('useDebts', () => {
       data: undefined,
       error: undefined,
       isLoading: false,
+      isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWR>)
 
@@ -33,6 +34,7 @@ describe('useDebts', () => {
       data: debts,
       error: undefined,
       isLoading: false,
+      isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWR>)
 
@@ -46,6 +48,7 @@ describe('useDebts', () => {
       data: undefined,
       error: undefined,
       isLoading: true,
+      isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWR>)
 
@@ -60,6 +63,7 @@ describe('useDebts', () => {
       data: undefined,
       error,
       isLoading: false,
+      isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWR>)
 
@@ -74,6 +78,7 @@ describe('useDebts', () => {
       data: [],
       error: undefined,
       isLoading: false,
+      isValidating: false,
       mutate,
     } as ReturnType<typeof useSWR>)
 
@@ -87,6 +92,7 @@ describe('useDebts', () => {
       data: [],
       error: undefined,
       isLoading: false,
+      isValidating: false,
       mutate: vi.fn(),
     } as ReturnType<typeof useSWR>)
 

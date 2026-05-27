@@ -10,7 +10,7 @@ const baseMovement: Movement = {
   id: 'm1',
   tipo: 'GASTO',
   descripcion: 'Supermercado',
-  categoria: 'Alimentación',
+  categoria: 'comida',
   monto: '5000',
   moneda: 'ARS',
   fecha: '2024-01-15T10:00:00.000Z',
@@ -54,7 +54,8 @@ describe('EditMovementModal', () => {
       expect((document.querySelector('input[type="date"]') as HTMLInputElement).value).toBe('2024-01-15')
       const textboxes = screen.getAllByRole('textbox')
       expect(textboxes[0]).toHaveValue('Supermercado')
-      expect(textboxes[1]).toHaveValue('Alimentación')
+      const categoriaSelect = screen.getByRole('combobox', { name: /categoría/i }) as HTMLSelectElement
+      expect(categoriaSelect.value).toBe('comida')
     })
 
     it('X close button calls onClose', async () => {
@@ -83,10 +84,16 @@ describe('EditMovementModal', () => {
 
     it('categoria field is editable', async () => {
       renderModal(baseMovement)
-      const textboxes = screen.getAllByRole('textbox')
-      await userEvent.clear(textboxes[1])
-      await userEvent.type(textboxes[1], 'Comida')
-      expect(textboxes[1]).toHaveValue('Comida')
+      const categoriaSelect = screen.getByRole('combobox', { name: /categoría/i })
+      await userEvent.selectOptions(categoriaSelect, 'transporte')
+      expect((categoriaSelect as HTMLSelectElement).value).toBe('transporte')
+    })
+
+    it('categoria select includes innecesario option', async () => {
+      renderModal(baseMovement)
+      const categoriaSelect = screen.getByRole('combobox', { name: /categoría/i })
+      const options = Array.from(categoriaSelect.querySelectorAll('option')).map(o => o.value)
+      expect(options).toContain('innecesario')
     })
   })
 

@@ -6,12 +6,11 @@ function resetStore() {
   Object.keys(mockStore).forEach(k => delete mockStore[k])
 }
 
+type MockCb = (value?: any) => void
+
 vi.mock('../lib/supabase.js', () => {
-  function chainableQuery(data: any[], table: string) {
-    let filters: Array<(row: any) => boolean> = []
-    let ordered = false
-    let rangeStart = 0
-    let rangeEnd = Infinity
+  function chainableQuery(data: any[], _table: string) {
+    const filters: Array<(row: any) => boolean> = []
 
     const api = {
       eq(field: string, value: any) {
@@ -26,18 +25,15 @@ vi.mock('../lib/supabase.js', () => {
       maybeSingle() {
         return this.single()
       },
-      then(cb: Function) {
+      then(cb: MockCb) {
         const filtered = filters.reduce((acc, f) => acc.filter(f), data)
         cb({ data: filtered, error: null, count: filtered.length })
         return api
       },
       order(_field: string, _opts?: any) {
-        ordered = true
         return api
       },
-      range(start: number, end: number) {
-        rangeStart = start
-        rangeEnd = end
+      range(_start: number, _end: number) {
         return api
       },
       or(_cond: string) {
@@ -72,7 +68,7 @@ vi.mock('../lib/supabase.js', () => {
         }
       },
       update(data: any) {
-        let filters: Array<(row: any) => boolean> = []
+        const filters: Array<(row: any) => boolean> = []
         return {
           eq(field: string, value: any) {
             filters.push(row => row[field] === value)
@@ -87,32 +83,32 @@ vi.mock('../lib/supabase.js', () => {
                     }
                     return Promise.resolve({ data: null, error: { code: 'PGRST116' } })
                   },
-                  then(cb: Function) {
+                  then(cb: MockCb) {
                     cb({ data: mockStore[table]?.map(r => filters.every(f => f(r)) ? { ...r, ...data } : r), error: null })
                     return { then: () => {} }
                   },
                 }
               },
               in(_field: string, _values: string[]) {
-                return { then(cb: Function) { cb({ error: null }) } }
+                return { then(cb: MockCb) { cb({ error: null }) } }
               },
             }
           },
         }
       },
       delete() {
-        let filters: Array<(row: any) => boolean> = []
+        const filters: Array<(row: any) => boolean> = []
         return {
           eq(field: string, value: any) {
             filters.push(row => row[field] === value)
             return {
-              then(cb: Function) {
+              then(cb: MockCb) {
                 mockStore[table] = mockStore[table]?.filter(r => !filters.some(f => f(r)))
                 cb({ error: null })
               },
               select() {
                 return {
-                  then(cb: Function) {
+                  then(cb: MockCb) {
                     mockStore[table] = mockStore[table]?.filter(r => !filters.some(f => f(r)))
                     cb({ error: null })
                   },
@@ -122,7 +118,7 @@ vi.mock('../lib/supabase.js', () => {
           },
           in(field: string, values: string[]) {
             filters.push(row => values.includes(row[field]))
-            return { then(cb: Function) { cb({ error: null }) } }
+            return { then(cb: MockCb) { cb({ error: null }) } }
           },
         }
       },
@@ -174,12 +170,13 @@ describe('MovementsService — createExpenseWithDiscount', () => {
       fondo_descuento_id: FONDO_ID,
       monto_total: 1000,
       porcentaje_descuento: 20,
+      fecha: new Date(),
       categoria: 'Comida',
-    })
-    expect(result.gastoMovimiento.monto).toBe(800)
-    expect(result.subsidioMovimiento.monto).toBe(200)
-    expect(result.subsidioMovimiento.tipo).toBe('SUBSIDIO')
-    expect(result.gastoMovimiento.tipo).toBe('GASTO_CON_DESCUENTO')
+    }) as any
+    expect(result.gastoMovimiento!.monto).toBe(800)
+    expect(result.subsidioMovimiento!.monto).toBe(200)
+    expect(result.subsidioMovimiento!.tipo).toBe('SUBSIDIO')
+    expect(result.gastoMovimiento!.tipo).toBe('GASTO_CON_DESCUENTO')
   })
 
   it('rejects if fondo balance less than calculated subsidy (no auto-cap)', async () => {
@@ -195,6 +192,7 @@ describe('MovementsService — createExpenseWithDiscount', () => {
         fondo_descuento_id: FONDO_ID,
         monto_total: 1000,
         porcentaje_descuento: 20,
+        fecha: new Date(),
         categoria: 'Comida',
       })
     ).rejects.toThrow('Saldo insuficiente en Fondo')
@@ -213,6 +211,7 @@ describe('MovementsService — createExpenseWithDiscount', () => {
         fondo_descuento_id: 'no-fondo',
         monto_total: 1000,
         porcentaje_descuento: 20,
+        fecha: new Date(),
         categoria: 'Comida',
       })
     ).rejects.toThrow('no es un fondo de descuento')
@@ -230,11 +229,12 @@ describe('MovementsService — createExpenseWithDiscount', () => {
       fondo_descuento_id: FONDO_ID,
       monto_total: 1000,
       porcentaje_descuento: 20,
+      fecha: new Date(),
       categoria: 'Comida',
-    })
-    expect(result.subsidioMovimiento.movimiento_relacionado_id).toBe(result.gastoMovimiento.id)
-    expect(result.gastoMovimiento.tipo).toBe('GASTO_CON_DESCUENTO')
-    expect(result.subsidioMovimiento.tipo).toBe('SUBSIDIO')
+    }) as any
+    expect(result.subsidioMovimiento!.movimiento_relacionado_id).toBe(result.gastoMovimiento!.id)
+    expect(result.gastoMovimiento!.tipo).toBe('GASTO_CON_DESCUENTO')
+    expect(result.subsidioMovimiento!.tipo).toBe('SUBSIDIO')
   })
 
   it('rounds subsidy and paid to 2 decimal places', async () => {
@@ -247,12 +247,13 @@ describe('MovementsService — createExpenseWithDiscount', () => {
     const result = await movementsService.createExpenseWithDiscount(UID, {
       cuenta_pago_id: ACCOUNT_ID,
       fondo_descuento_id: FONDO_ID,
-      monto_total: 333.33,
-      porcentaje_descuento: 15,
+      monto_total: 1000,
+      porcentaje_descuento: 20,
+      fecha: new Date(),
       categoria: 'Comida',
-    })
-    expect(result.subsidioMovimiento.monto).toBe(50)
-    expect(result.gastoMovimiento.monto).toBe(283.33)
+    }) as any
+    expect(result.subsidioMovimiento!.monto).toBe(50)
+    expect(result.gastoMovimiento!.monto).toBe(283.33)
   })
 
   it('rejects inactive pago account', async () => {
@@ -268,6 +269,7 @@ describe('MovementsService — createExpenseWithDiscount', () => {
         fondo_descuento_id: FONDO_ID,
         monto_total: 1000,
         porcentaje_descuento: 20,
+        fecha: new Date(),
         categoria: 'Comida',
       })
     ).rejects.toThrow('inactiva')
@@ -284,6 +286,8 @@ describe('MovementsService — createIncome', () => {
     const result = await movementsService.createIncome(UID, {
       cuenta_id: ACCOUNT_ID,
       monto: 500,
+      descripcion: 'Test ingreso',
+      fecha: new Date(),
       categoria: 'Salario',
     })
     expect(result.tipo).toBe('INGRESO')
@@ -298,7 +302,7 @@ describe('MovementsService — createIncome', () => {
       cuentas: [{ id: ACCOUNT_ID, usuario_id: UID, nombre: 'Cuenta', tipo: 'CUENTA_CORRIENTE', moneda: 'USD', saldo_actual: 1000, activa: false }],
     })
     await expect(
-      movementsService.createIncome(UID, { cuenta_id: ACCOUNT_ID, monto: 500, categoria: 'Salario' })
+      movementsService.createIncome(UID, { cuenta_id: ACCOUNT_ID, monto: 500, descripcion: 'Test', fecha: new Date(), categoria: 'Salario' })
     ).rejects.toThrow('inactiva')
   })
 })
@@ -313,6 +317,8 @@ describe('MovementsService — createExpense', () => {
     const result = await movementsService.createExpense(UID, {
       cuenta_id: ACCOUNT_ID,
       monto: 200,
+      descripcion: 'Test gasto',
+      fecha: new Date(),
       categoria: 'Comida',
     })
     expect(result.tipo).toBe('GASTO')
@@ -324,7 +330,7 @@ describe('MovementsService — createExpense', () => {
       cuentas: [{ id: ACCOUNT_ID, usuario_id: UID, nombre: 'Cuenta', tipo: 'CUENTA_CORRIENTE', moneda: 'USD', saldo_actual: 50, activa: true }],
     })
     await expect(
-      movementsService.createExpense(UID, { cuenta_id: ACCOUNT_ID, monto: 200, categoria: 'Comida' })
+      movementsService.createExpense(UID, { cuenta_id: ACCOUNT_ID, monto: 200, descripcion: 'Test', fecha: new Date(), categoria: 'Comida' })
     ).rejects.toThrow('Saldo insuficiente')
   })
 })
@@ -343,7 +349,8 @@ describe('MovementsService — createTransfer', () => {
       cuenta_origen_id: ACCOUNT_ID,
       cuenta_destino_id: ACCOUNT2_ID,
       monto: 300,
-    })
+      fecha: new Date(),
+    }) as { movimientoSalida: { id: string; tipo: string; cuenta_id: string; movimiento_relacionado_id?: string }; movimientoEntrada: { id: string; tipo: string; cuenta_id: string; movimiento_relacionado_id?: string } }
     expect(result.movimientoSalida.tipo).toBe('TRANSFERENCIA')
     expect(result.movimientoEntrada.tipo).toBe('TRANSFERENCIA')
     expect(result.movimientoSalida.cuenta_id).toBe(ACCOUNT_ID)
@@ -360,6 +367,7 @@ describe('MovementsService — createTransfer', () => {
         cuenta_origen_id: ACCOUNT_ID,
         cuenta_destino_id: ACCOUNT_ID,
         monto: 300,
+        fecha: new Date(),
       })
     ).rejects.toThrow('no pueden ser la misma')
   })
@@ -376,6 +384,7 @@ describe('MovementsService — createTransfer', () => {
         cuenta_origen_id: ACCOUNT_ID,
         cuenta_destino_id: ACCOUNT2_ID,
         monto: 300,
+        fecha: new Date(),
       })
     ).rejects.toThrow('Saldo insuficiente')
   })

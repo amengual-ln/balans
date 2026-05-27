@@ -34,7 +34,7 @@ describe('useAPI', () => {
 
     it('returns json directly when data is not present', async () => {
       fetchSpy.mockResolvedValueOnce(mockResponse({ foo: 'bar' }))
-      const result = await apiFetcher<{ foo: string }>('/api/test')
+      await apiFetcher<{ foo: string }>('/api/test')
       expect(fetchSpy).toHaveBeenCalledWith('/api/test', {
         headers: { 'x-user-id': USER_ID },
       })

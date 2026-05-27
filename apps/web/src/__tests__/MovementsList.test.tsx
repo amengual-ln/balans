@@ -59,27 +59,10 @@ const movimientoDeuda: Movement = {
   descripcion: 'Pago cuota tarjeta',
   monto: '20000',
   cuenta_origen: { id: 'c1', nombre: 'Banco Galicia', tipo: 'BANCO', moneda: 'ARS' },
-  deuda: { id: 'd1', acreedor: 'Banco Galicia', monto_original: '100000' },
+  deuda: { id: 'd1', acreedor: 'Banco Galicia', direccion: 'POR_PAGAR' as const },
 }
 
-const today = new Date().toISOString().split('T')[0]
-const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-
-const movimientoHoy: Movement = { ...baseMovement, id: 'm-hoy', fecha: `${today}T10:00:00.000Z` }
-const movimientoAyer: Movement = { ...baseMovement, id: 'm-ayer', fecha: `${yesterday}T10:00:00.000Z` }
-
-const subsidio: Movement = {
-  ...baseMovement,
-  id: 'sub1',
-  tipo: 'SUBSIDIO',
-  descripcion: 'Subsidio fondo descuento',
-  monto: '500',
-  movimiento_relacionado_id: 'm1',
-  metadata: { porcentaje_descuento: 10 },
-  cuenta_origen: { id: 'c3', nombre: 'Fondo Descuento', tipo: 'FONDO_DESCUENTO', moneda: 'ARS' },
-}
-
-const renderList = (props: { movements: Movement[]; isLoading?: boolean; onEditMovement?: (m: Movement) => void }) =>
+const renderList = (props: { movements: Movement[]; isLoading: boolean; onEditMovement?: (m: Movement) => void }) =>
   render(<MovementsList {...props} />)
 
 describe('MovementsList', () => {

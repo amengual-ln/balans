@@ -100,8 +100,6 @@ export default function Accounts() {
       setShowForm(false);
       setToast('Cuenta creada exitosamente');
       mutate();
-    } catch (err) {
-      throw err;
     } finally {
       setSubmitting(false);
     }

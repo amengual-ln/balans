@@ -130,7 +130,6 @@ function CardPaymentModal({ card, onClose, onSuccess }: CardPaymentModalProps) {
     if (paymentAccounts.length > 0 && !cuentaId) {
       setCuentaId(paymentAccounts[0].id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts]);
 
   // Pre-fill saldo pendiente

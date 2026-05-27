@@ -28,7 +28,7 @@ vi.mock('@/hooks/useAPI', () => ({
 }))
 
 vi.mock('@/components/TickerPositionCard', () => ({
-  default: ({ position, onEdit, onRetorno, onDelete, onPrecio }: any) => (
+  default: ({ position, onEdit, onDelete }: any) => (
     <div data-testid="position-card">
       <span>{position.simbolo}</span>
       <button onClick={() => onEdit?.(position)}>Editar</button>
@@ -47,11 +47,11 @@ vi.mock('@/components/InversionForm', () => ({
 }))
 
 vi.mock('@/components/RetornoInversionModal', () => ({
-  default: ({ onClose }: any) => <div role="dialog" />,
+  default: () => <div role="dialog" />,
 }))
 
 vi.mock('@/components/PrecioMercadoModal', () => ({
-  default: ({ onClose }: any) => <div role="dialog" />,
+  default: () => <div role="dialog" />,
 }))
 
 const renderPage = () =>

@@ -154,7 +154,6 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, monto]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
