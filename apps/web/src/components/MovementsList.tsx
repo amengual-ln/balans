@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, X, Gift, CreditCard, Landmark } from 'lucide-react';
+import { ChevronDown, X, Gift, CreditCard, Landmark, Pencil } from 'lucide-react';
 import type { Movement } from '@/hooks/useMovements';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -138,6 +138,20 @@ function MovementRow({ movement, subsidio, onEdit }: { movement: Movement; subsi
             <p className="text-xs text-text-secondary">{movement.moneda}</p>
           )}
         </div>
+
+        {canEdit && onEdit && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit(movement);
+            }}
+            className="shrink-0 rounded-full p-2 text-text-secondary transition-colors hover:bg-surface hover:text-primary"
+            aria-label={`Editar ${movement.descripcion}`}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {subsidio && (

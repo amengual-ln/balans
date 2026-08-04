@@ -66,6 +66,7 @@ describe('QuickAdd', () => {
     it('switches to TRANSFERENCIA', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('button', { name: /transferir/i }))
       expect(screen.getByRole('heading', { name: /nueva transferencia/i })).toBeInTheDocument()
     })
@@ -96,15 +97,23 @@ describe('QuickAdd', () => {
   })
 
   describe('description', () => {
-    it('shows for GASTO', async () => {
+    it('is hidden in simple mode', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      expect(screen.queryByPlaceholderText(/descripción/i)).not.toBeInTheDocument()
+    })
+
+    it('shows for GASTO in advanced options', async () => {
+      renderQA()
+      await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       expect(screen.getByPlaceholderText(/descripción/i)).toBeInTheDocument()
     })
 
-    it('shows for INGRESO', async () => {
+    it('shows for INGRESO in advanced options', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('button', { name: /ingreso/i }))
       expect(screen.getByPlaceholderText(/descripción/i)).toBeInTheDocument()
     })
@@ -112,6 +121,7 @@ describe('QuickAdd', () => {
     it('hidden for TRANSFERENCIA', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('button', { name: /transferir/i }))
       expect(screen.queryByPlaceholderText(/descripción/i)).not.toBeInTheDocument()
     })
@@ -162,15 +172,23 @@ describe('QuickAdd', () => {
   })
 
   describe('discount fund', () => {
-    it('shows for GASTO', async () => {
+    it('is hidden in simple mode', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      expect(screen.queryByText(/aplica descuento de fondo/i)).not.toBeInTheDocument()
+    })
+
+    it('shows for GASTO in advanced options', async () => {
+      renderQA()
+      await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       expect(screen.getByText(/aplica descuento de fondo/i)).toBeInTheDocument()
     })
 
     it('shows options when toggled on', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('checkbox', { name: /aplica descuento/i }))
       expect(screen.getByText(/fondo de descuento/i)).toBeInTheDocument()
     })
@@ -178,21 +196,30 @@ describe('QuickAdd', () => {
     it('hidden for TRANSFERENCIA', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('button', { name: /transferir/i }))
       expect(screen.queryByText(/aplica descuento/i)).not.toBeInTheDocument()
     })
   })
 
   describe('date toggle', () => {
-    it('shows toggle button', async () => {
+    it('is hidden in simple mode', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      expect(screen.queryByRole('button', { name: /cambiar fecha/i })).not.toBeInTheDocument()
+    })
+
+    it('shows toggle button in advanced options', async () => {
+      renderQA()
+      await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       expect(screen.getByRole('button', { name: /cambiar fecha/i })).toBeInTheDocument()
     })
 
     it('shows date input when toggled', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('button', { name: /cambiar fecha/i }))
       const dateInput = document.querySelector('input[type="date"]')
       expect(dateInput).toBeInTheDocument()
@@ -203,6 +230,7 @@ describe('QuickAdd', () => {
     it('shows origen and hacia selectors', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('button', { name: /transferir/i }))
       expect(screen.getByRole('combobox', { name: /desde/i })).toBeInTheDocument()
       expect(screen.getByRole('combobox', { name: /hacia/i })).toBeInTheDocument()
@@ -211,6 +239,7 @@ describe('QuickAdd', () => {
     it('shows conversion rate input', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('button', { name: /transferir/i }))
       expect(screen.getByText(/tasa de conversión/i)).toBeInTheDocument()
     })
@@ -269,6 +298,7 @@ describe('QuickAdd', () => {
     it('calls onSubmit with TRANSFERENCIA data', async () => {
       renderQA()
       await userEvent.click(screen.getByRole('button', { name: /quick add/i }))
+      await userEvent.click(screen.getByRole('button', { name: /más opciones/i }))
       await userEvent.click(screen.getByRole('button', { name: /transferir/i }))
       await userEvent.type(screen.getByRole('textbox', { name: /monto/i }), '200')
       await userEvent.click(screen.getByRole('button', { name: /guardar/i }))

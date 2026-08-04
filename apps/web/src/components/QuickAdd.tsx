@@ -88,6 +88,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
   const [descripcion, setDescripcion] = useState('');
   const [fechaActiva, setFechaActiva] = useState(false);
   const [fecha, setFecha] = useState('');
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -168,6 +169,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
       setFechaActiva(false);
       setFecha('');
       setDescuentoActivo(false);
+      setShowAdvancedOptions(false);
       setPorcentajeDescuento(70);
       setTasaConversion('');
       setCantidadCuotas(1);
@@ -327,7 +329,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
               </button>
             </div>
 
-            {/* Type toggle — 3 buttons */}
+            {/* Type toggle */}
             <div className="mb-6 flex gap-2">
               <button
                 onClick={() => setTipo('GASTO')}
@@ -351,17 +353,19 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
                 <TrendingUp className="h-5 w-5" />
                 <span>Ingreso</span>
               </button>
-              <button
-                onClick={() => setTipo('TRANSFERENCIA')}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-lg border-2 py-3 font-medium transition-all ${
-                  tipo === 'TRANSFERENCIA'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                <ArrowLeftRight className="h-5 w-5" />
-                <span>Transferir</span>
-              </button>
+              {showAdvancedOptions && (
+                <button
+                  onClick={() => setTipo('TRANSFERENCIA')}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg border-2 py-3 font-medium transition-all ${
+                    tipo === 'TRANSFERENCIA'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <ArrowLeftRight className="h-5 w-5" />
+                  <span>Transferir</span>
+                </button>
+              )}
             </div>
 
             {/* Amount input */}
@@ -386,8 +390,21 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
               </div>
             </div>
 
+            <button
+              type="button"
+              onClick={() => {
+                setShowAdvancedOptions((value) => {
+                  if (value && tipo === 'TRANSFERENCIA') setTipo('GASTO')
+                  return !value
+                })
+              }}
+              className="mb-4 text-xs font-medium text-primary transition-opacity hover:opacity-80"
+            >
+              {showAdvancedOptions ? 'Ocultar opciones' : 'Más opciones'}
+            </button>
+
             {/* Description input — hidden for transfers */}
-            {tipo !== 'TRANSFERENCIA' && (
+            {showAdvancedOptions && tipo !== 'TRANSFERENCIA' && (
               <div className="mb-4">
                 <input
                   type="text"
@@ -522,7 +539,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
             )}
 
             {/* Destination account selector — only for transfers */}
-            {tipo === 'TRANSFERENCIA' && (
+            {showAdvancedOptions && tipo === 'TRANSFERENCIA' && (
               <div className="mb-4">
                 <div className="mb-2 flex items-center justify-between">
                   <label htmlFor="qa-destino" className="text-sm font-medium text-gray-700">
@@ -588,7 +605,7 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
             )}
 
             {/* Date toggle */}
-            <div className="mb-4">
+            {showAdvancedOptions && <div className="mb-4">
               <button
                 type="button"
                 onClick={() => setFechaActiva((v) => !v)}
@@ -608,10 +625,10 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
                   />
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* Discount fund section — for regular gastos and card purchases */}
-            {(tipo === 'GASTO' && !isCardSelected) || (isCardSelected && discountFunds.length > 0) ? (
+            {showAdvancedOptions && ((tipo === 'GASTO' && !isCardSelected) || (isCardSelected && discountFunds.length > 0)) ? (
               <div className="mb-4">
                 {/* Toggle */}
                 <label
