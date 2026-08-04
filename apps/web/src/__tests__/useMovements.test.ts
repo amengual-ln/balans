@@ -31,15 +31,23 @@ describe('useMovements', () => {
   })
 
   it('includes tarjeta_id param when provided', () => {
-    renderHook(() => useMovements('2024-01-01', '2024-01-31', 'card-123'))
+    renderHook(() => useMovements('2024-01-01', '2024-01-31', { tarjetaId: 'card-123' }))
 
     expect(mockUseAPI).toHaveBeenCalledWith(
       '/api/movements?desde=2024-01-01&hasta=2024-01-31&limit=500&offset=0&tarjeta_id=card-123'
     )
   })
 
+  it('includes cuenta_id param when provided', () => {
+    renderHook(() => useMovements('2024-01-01', '2024-01-31', { cuentaId: 'account-123' }))
+
+    expect(mockUseAPI).toHaveBeenCalledWith(
+      '/api/movements?desde=2024-01-01&hasta=2024-01-31&limit=500&offset=0&cuenta_id=account-123'
+    )
+  })
+
   it('does not include tarjeta_id when null', () => {
-    renderHook(() => useMovements('2024-01-01', '2024-01-31', null))
+    renderHook(() => useMovements('2024-01-01', '2024-01-31', { tarjetaId: null }))
 
     expect(mockUseAPI).toHaveBeenCalledWith(
       '/api/movements?desde=2024-01-01&hasta=2024-01-31&limit=500&offset=0'

@@ -1,13 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
-import { useSWRConfig } from 'swr'
 import MovementsList from '@/components/MovementsList'
-import QuickAdd, { type QuickAddData } from '@/components/QuickAdd'
+import QuickAdd from '@/components/QuickAdd'
 import EditMovementModal from '@/components/EditMovementModal'
 import { useStats, type MonthlyStats } from '@/hooks/useStats'
 import { useMovements } from '@/hooks/useMovements'
-import { apiPost } from '@/hooks/useAPI'
+import { useQuickAddMovement } from '@/hooks/useQuickAddMovement'
 import type { Movement } from '@/hooks/useMovements'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -136,8 +135,11 @@ export default function Movements() {
     movements,
     isLoading: movementsLoading,
     mutate: mutateMovements,
-  } = useMovements(desdeISO, hastaISO, searchParams.get('tarjeta_id'))
-  const { mutate: globalMutate } = useSWRConfig()
+  } = useMovements(desdeISO, hastaISO, {
+    tarjetaId: searchParams.get('tarjeta_id'),
+    cuentaId: searchParams.get('cuenta_id'),
+  })
+  const { submitQuickAdd } = useQuickAddMovement()
 
   // ── Period navigation ────────────────────────────────────────────────────
 
@@ -161,76 +163,12 @@ export default function Movements() {
   const handleEditSuccess = (_updated: Movement) => {
     mutateMovements();
     mutateStats();
-    globalMutate('/api/cuentas');
     setEditTarget(null);
   };
 
   const handleDeleted = () => handleEditSuccess(null as unknown as Movement);
 
   // ── QuickAdd handler ─────────────────────────────────────────────────────
-
-  const handleQuickAdd = async (data: QuickAddData) => {
-    let endpoint: string
-    let body: unknown
-
-    if (data.tipo === 'TARJETA' && data.descuento_activo && data.fondo_descuento_id) {
-      endpoint = '/api/movements/compra-tarjeta-descuento'
-      body = {
-        tarjeta_id: data.tarjeta_id,
-        monto_total: data.monto,
-        porcentaje_descuento: data.porcentaje_descuento,
-        fondo_descuento_id: data.fondo_descuento_id,
-        cantidad_cuotas: data.cantidad_cuotas ?? 1,
-        descripcion: data.descripcion || 'Compra con tarjeta',
-        categoria: data.categoria,
-        fecha: data.fecha,
-      }
-    } else if (data.tipo === 'TARJETA') {
-      endpoint = '/api/movements/compra-tarjeta'
-      body = {
-        tarjeta_id: data.tarjeta_id,
-        monto: data.monto,
-        cantidad_cuotas: data.cantidad_cuotas ?? 1,
-        descripcion: data.descripcion || 'Compra con tarjeta',
-        categoria: data.categoria,
-        fecha: data.fecha,
-      }
-    } else if (data.tipo === 'TRANSFERENCIA') {
-      endpoint = '/api/movements/transfer'
-      body = {
-        cuenta_origen_id: data.cuenta_id,
-        cuenta_destino_id: data.cuenta_destino_id,
-        monto: data.monto,
-        descripcion: data.descripcion,
-        fecha: data.fecha,
-        tasa_conversion: data.tasa_conversion,
-      }
-    } else if (data.descuento_activo && data.fondo_descuento_id) {
-      endpoint = '/api/movements/expense-with-discount'
-      body = {
-        monto_total: data.monto,
-        porcentaje_descuento: data.porcentaje_descuento,
-        cuenta_pago_id: data.cuenta_id,
-        fondo_descuento_id: data.fondo_descuento_id,
-        categoria: data.categoria,
-        descripcion: data.descripcion,
-        fecha: data.fecha,
-      }
-    } else {
-      endpoint = '/api/movements/quick'
-      body = data
-    }
-
-    await apiPost(endpoint, body)
-
-    // Revalidate movements, stats, and accounts (balance changed)
-    mutateMovements()
-    mutateStats()
-    globalMutate('/api/cuentas')
-    if (data.tipo === 'TARJETA') {
-      globalMutate('/api/tarjetas')
-    }
-  }
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -276,7 +214,7 @@ export default function Movements() {
       </div>
 
       {/* ── QuickAdd FAB ── */}
-      <QuickAdd onSubmit={handleQuickAdd} />
+      <QuickAdd onSubmit={submitQuickAdd} />
 
       {/* ── Edit movement modal ── */}
       {editTarget && (

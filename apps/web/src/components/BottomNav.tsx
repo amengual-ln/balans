@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ArrowLeftRight, Building2, CreditCard, MoreVertical, Landmark, RefreshCw, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, Building2, CreditCard, Home, MoreVertical, Landmark, RefreshCw, TrendingUp } from 'lucide-react';
 
 const PRIMARY_ITEMS = [
+  { to: '/', label: 'Inicio', Icon: Home },
   { to: '/movements', label: 'Movimientos', Icon: ArrowLeftRight },
   { to: '/subscriptions', label: 'Suscripciones', Icon: RefreshCw },
-  { to: '/cards', label: 'Tarjetas', Icon: CreditCard },
 ];
 
 const OVERFLOW_ITEMS = [
+  { to: '/cards', label: 'Tarjetas', Icon: CreditCard },
   { to: '/accounts', label: 'Cuentas', Icon: Building2 },
   { to: '/debts', label: 'Deudas', Icon: Landmark },
   { to: '/investments', label: 'Inversiones', Icon: TrendingUp },

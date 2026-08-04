@@ -9,6 +9,7 @@ type TipoMovimiento =
   | 'GASTO_TARJETA_CON_DESCUENTO'
   | 'PAGO_DEUDA'
   | 'COBRO_DEUDA'
+  | 'SUSCRIPCION'
   | 'INVERSION'
   | 'RETORNO_INVERSION'
   | 'AJUSTE'
@@ -52,7 +53,16 @@ export interface Movement {
   metadata?: { monto_total?: number; porcentaje_descuento?: number } | null
 }
 
-export function useMovements(desdeISO: string, hastaISO: string, tarjetaId?: string | null) {
+interface UseMovementsFilters {
+  tarjetaId?: string | null
+  cuentaId?: string | null
+}
+
+export function useMovements(
+  desdeISO: string,
+  hastaISO: string,
+  filters: UseMovementsFilters = {},
+) {
   const params = new URLSearchParams({
     desde: desdeISO,
     hasta: hastaISO,
@@ -60,8 +70,12 @@ export function useMovements(desdeISO: string, hastaISO: string, tarjetaId?: str
     offset: '0',
   })
 
-  if (tarjetaId) {
-    params.set('tarjeta_id', tarjetaId)
+  if (filters.tarjetaId) {
+    params.set('tarjeta_id', filters.tarjetaId)
+  }
+
+  if (filters.cuentaId) {
+    params.set('cuenta_id', filters.cuentaId)
   }
 
   const { data, error, isLoading, mutate } = useAPI<Movement[]>(`/api/movements?${params}`)
