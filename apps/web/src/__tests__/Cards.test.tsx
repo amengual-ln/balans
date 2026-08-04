@@ -96,7 +96,7 @@ describe('Cards', () => {
       mockUseCards.mockReturnValueOnce({ cards: cardsWithProximo, isLoading: false, mutate: vi.fn() })
       renderPage()
       expect(screen.getByText(/siguiente pago/i)).toBeInTheDocument()
-      expect(screen.getByText(/3 cuotas/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/3 cuotas/i).length).toBeGreaterThan(0)
     })
 
     it('does not render next payment line when no proximo_pago', () => {
@@ -123,7 +123,7 @@ describe('Cards', () => {
       ]
       mockUseCards.mockReturnValueOnce({ cards: cardsMultiple, isLoading: false, mutate: vi.fn() })
       renderPage()
-      expect(screen.getByText(/3 cuotas/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/3 cuotas/i).length).toBeGreaterThan(0)
     })
 
     it('renders next payment monto as sum of one cuota per purchase on the nearest card', () => {

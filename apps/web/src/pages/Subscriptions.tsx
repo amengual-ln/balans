@@ -7,6 +7,7 @@ import SubscriptionCard from '@/components/SubscriptionCard';
 import SubscriptionForm, { SubscriptionFormData } from '@/components/SubscriptionForm';
 import SubscriptionPaymentModal from '@/components/SubscriptionPaymentModal';
 import { apiPost, apiPut, apiDelete } from '@/hooks/useAPI';
+import { daysUntil, formatAmount } from '@/lib/financeFormat';
 
 // ─── Monthly cost multipliers ─────────────────────────────────────────────────
 
@@ -80,9 +81,7 @@ function TotalsBanner({ subscriptions }: { subscriptions: Subscription[] }) {
           {Array.from(byMoneda.entries()).map(([moneda, total]) => (
             <div key={moneda} className="flex items-baseline gap-1.5">
               <span className="text-sm text-text-secondary">{moneda}</span>
-              <span className="text-2xl font-bold tabular-nums text-text-primary">
-                {total.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-              </span>
+              <span className="text-2xl font-bold tabular-nums text-text-primary">{formatAmount(total)}</span>
             </div>
           ))}
         </div>
@@ -135,6 +134,53 @@ function DeleteConfirm({ subscription: sub, onConfirm, onCancel, deleting }: Del
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+interface SubscriptionSectionProps {
+  title: string;
+  subscriptions: Subscription[];
+  emptyText?: string;
+  onPay: (subscription: Subscription) => void;
+  onEdit: (subscription: Subscription) => void;
+  onDelete: (subscription: Subscription) => void;
+}
+
+function SubscriptionSection({
+  title,
+  subscriptions,
+  emptyText,
+  onPay,
+  onEdit,
+  onDelete,
+}: SubscriptionSectionProps) {
+  if (subscriptions.length === 0) {
+    if (!emptyText) return null;
+    return (
+      <div className="mb-5 rounded-xl border border-border bg-white p-4 text-sm text-text-secondary">
+        {emptyText}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8">
+      <h2 className="mb-4 text-lg font-semibold text-text-primary">
+        {title}
+        <span className="ml-2 text-sm font-normal text-text-secondary">({subscriptions.length})</span>
+      </h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {subscriptions.map((sub) => (
+          <SubscriptionCard
+            key={sub.id}
+            subscription={sub}
+            onPay={onPay}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Subscriptions() {
   const { subscriptions, isLoading, mutate } = useSubscriptions();
   const { accounts } = useAccounts();
@@ -148,10 +194,20 @@ export default function Subscriptions() {
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const { active, inactive } = useMemo(() => {
-    const a = subscriptions.filter((s) => s.activo);
-    const i = subscriptions.filter((s) => !s.activo);
-    return { active: a, inactive: i };
+  const { overdue, soon, later, inactive } = useMemo(() => {
+    const sortedActive = subscriptions
+      .filter((s) => s.activo)
+      .sort((a, b) => daysUntil(a.proxima_fecha_pago) - daysUntil(b.proxima_fecha_pago));
+
+    return {
+      overdue: sortedActive.filter((s) => daysUntil(s.proxima_fecha_pago) < 0),
+      soon: sortedActive.filter((s) => {
+        const days = daysUntil(s.proxima_fecha_pago);
+        return days >= 0 && days <= 7;
+      }),
+      later: sortedActive.filter((s) => daysUntil(s.proxima_fecha_pago) > 7),
+      inactive: subscriptions.filter((s) => !s.activo),
+    };
   }, [subscriptions]);
 
   const handleCreate = async (data: SubscriptionFormData) => {
@@ -276,22 +332,31 @@ export default function Subscriptions() {
           </div>
         )}
 
-        {/* Active subscriptions */}
-        {active.length > 0 && (
-          <div className="mb-8">
-            <h2 className="mb-4 text-lg font-semibold text-text-primary">Activas</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {active.map((sub) => (
-                <SubscriptionCard
-                  key={sub.id}
-                  subscription={sub}
-                  onPay={setPaySub}
-                  onEdit={(s) => setEditSub(s)}
-                  onDelete={setDeleteSub}
-                />
-              ))}
-            </div>
-          </div>
+        {subscriptions.length > 0 && (
+          <>
+            <SubscriptionSection
+              title="Vencidas"
+              subscriptions={overdue}
+              onPay={setPaySub}
+              onEdit={setEditSub}
+              onDelete={setDeleteSub}
+            />
+            <SubscriptionSection
+              title="Próximos 7 días"
+              subscriptions={soon}
+              emptyText="No hay pagos de suscripciones en los próximos 7 días."
+              onPay={setPaySub}
+              onEdit={setEditSub}
+              onDelete={setDeleteSub}
+            />
+            <SubscriptionSection
+              title="Más adelante"
+              subscriptions={later}
+              onPay={setPaySub}
+              onEdit={setEditSub}
+              onDelete={setDeleteSub}
+            />
+          </>
         )}
 
         {/* Inactive subscriptions */}

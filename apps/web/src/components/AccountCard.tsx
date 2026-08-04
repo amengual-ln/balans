@@ -1,4 +1,5 @@
-import { Building2, Wallet, TrendingUp, Banknote, Gift, RefreshCw } from 'lucide-react';
+import { Building2, Wallet, TrendingUp, Banknote, Gift, RefreshCw, Pencil, ArrowRightLeft } from 'lucide-react';
+import { formatAmount } from '@/lib/financeFormat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ interface AccountCardProps {
   account: Account;
   onClick: (account: Account) => void;
   onRecargar?: (account: Account) => void;
+  onAdjust?: (account: Account) => void;
+  onTransfer?: (account: Account) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -30,17 +33,9 @@ const TYPE_CONFIG: Record<TipoCuenta, { label: string; Icon: React.ComponentType
   FONDO_DESCUENTO: { label: 'Fondo Descuento', Icon: Gift },
 };
 
-function formatBalance(amount: string | number): string {
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('es-AR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(Math.abs(num));
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function AccountCard({ account, onClick, onRecargar }: AccountCardProps) {
+export default function AccountCard({ account, onClick, onRecargar, onAdjust, onTransfer }: AccountCardProps) {
   const { nombre, tipo, moneda, saldo_actual, activa } = account;
   const balance = typeof saldo_actual === 'string' ? parseFloat(saldo_actual) : saldo_actual;
   const isNegative = balance < 0;
@@ -82,7 +77,6 @@ export default function AccountCard({ account, onClick, onRecargar }: AccountCar
           {nombre}
         </p>
 
-        {/* Balance */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-xs font-medium text-text-secondary">{moneda}</span>
           <span
@@ -90,21 +84,52 @@ export default function AccountCard({ account, onClick, onRecargar }: AccountCar
               isNegative ? 'text-negative' : 'text-text-primary'
             }`}
           >
-            {isNegative ? '-' : ''}{formatBalance(saldo_actual)}
+            {isNegative ? '-' : ''}{formatAmount(saldo_actual)}
           </span>
         </div>
       </button>
 
-      {/* Recargar button — only for FONDO_DESCUENTO */}
-      {isFondoDescuento && activa && onRecargar && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRecargar(account); }}
-          className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-primary hover:text-primary"
-          title="Recargar mes"
-        >
-          <RefreshCw className="h-3 w-3" />
-          Recargar
-        </button>
+      {activa && (
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(account); }}
+            className="flex-1 rounded-lg border border-border px-2 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-primary hover:text-primary"
+          >
+            Movimientos
+          </button>
+
+          {isFondoDescuento && onRecargar ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRecargar(account); }}
+              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-primary hover:text-primary"
+              title="Recargar mes"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Recargar
+            </button>
+          ) : (
+            <>
+              {onTransfer && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onTransfer(account); }}
+                  className="rounded-lg border border-border px-2 py-1.5 text-text-secondary transition-colors hover:border-primary hover:text-primary"
+                  title="Transferir"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {onAdjust && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAdjust(account); }}
+                  className="rounded-lg border border-border px-2 py-1.5 text-text-secondary transition-colors hover:border-primary hover:text-primary"
+                  title="Ajustar saldo"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
       )}
     </div>
   );

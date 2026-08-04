@@ -26,6 +26,12 @@ export interface QuickAddData {
 
 interface QuickAddProps {
   onSubmit?: (data: QuickAddData) => void | Promise<void>;
+  initialIntent?: {
+    open?: boolean;
+    tipo?: 'INGRESO' | 'GASTO' | 'TRANSFERENCIA';
+    cuentaId?: string | null;
+    tarjetaId?: string | null;
+  };
 }
 
 interface Category {
@@ -69,7 +75,7 @@ function formatBalance(amount: string | number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function QuickAdd({ onSubmit }: QuickAddProps) {
+export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [tipo, setTipo] = useState<'INGRESO' | 'GASTO' | 'TRANSFERENCIA'>('GASTO');
   const [monto, setMonto] = useState('');
@@ -111,6 +117,21 @@ export default function QuickAdd({ onSubmit }: QuickAddProps) {
     const funds = accounts.filter((a) => a.tipo === 'FONDO_DESCUENTO');
     setFondoDescuentoId((prev) => prev ?? funds[0]?.id);
   }, [accounts]);
+
+  useEffect(() => {
+    if (!initialIntent?.open) return;
+
+    if (initialIntent.tipo) setTipo(initialIntent.tipo);
+    if (initialIntent.cuentaId) setSelectedAccountId(initialIntent.cuentaId);
+    if (initialIntent.tarjetaId) setSelectedAccountId(`card:${initialIntent.tarjetaId}`);
+    if (initialIntent.tipo === 'TRANSFERENCIA') setShowAdvancedOptions(true);
+    setIsOpen(true);
+  }, [
+    initialIntent?.open,
+    initialIntent?.tipo,
+    initialIntent?.cuentaId,
+    initialIntent?.tarjetaId,
+  ]);
 
   // ── Toast auto-dismiss ────────────────────────────────────────────────────
 

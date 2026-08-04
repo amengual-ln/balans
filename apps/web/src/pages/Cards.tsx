@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import CardCard from '@/components/CardCard';
@@ -7,6 +7,7 @@ import { useCards, type Card } from '@/hooks/useCards';
 import { useAccounts } from '@/hooks/useAccounts';
 import { apiPost } from '@/hooks/useAPI';
 import { useSWRConfig } from 'swr';
+import { dueLabel, formatAmount, formatShortDate, parseAmount } from '@/lib/financeFormat';
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ interface NextPayment {
   monto: number;
   moneda: string;
   cuotas_pendientes: number;
+  fecha: string;
+  cardName: string;
 }
 
 function TotalsBanner({ cards, nextPayment }: { cards: Card[]; nextPayment?: NextPayment }) {
@@ -76,10 +79,7 @@ function TotalsBanner({ cards, nextPayment }: { cards: Card[]; nextPayment?: Nex
             <span className="text-sm text-text-secondary">{currency}</span>
             <span className={`text-2xl font-bold tabular-nums ${total > 0 ? 'text-negative' : 'text-text-primary'}`}>
               {total > 0 ? '-' : ''}
-              {new Intl.NumberFormat('es-AR', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              }).format(Math.abs(total))}
+              {formatAmount(total)}
             </span>
           </div>
         ))}
@@ -90,17 +90,15 @@ function TotalsBanner({ cards, nextPayment }: { cards: Card[]; nextPayment?: Nex
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
             Siguiente pago
           </p>
-          <div className="flex items-baseline gap-1.5">
+          <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+            <span className="text-sm font-medium text-text-primary">{nextPayment.cardName}</span>
+            <span className="text-sm text-text-secondary">· {formatShortDate(nextPayment.fecha)}</span>
+            <span className="text-sm text-text-secondary">· {dueLabel(nextPayment.fecha)}</span>
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
             <span className="text-sm text-text-secondary">{nextPayment.moneda}</span>
-            <span className="text-lg font-bold tabular-nums text-text-primary">
-              {new Intl.NumberFormat('es-AR', {
-                minimumFractionDigits: 0,
-              }).format(nextPayment.monto)}
-            </span>
-            <span className="text-sm text-text-secondary">
-              · {nextPayment.cuotas_pendientes} cuota
-              {nextPayment.cuotas_pendientes !== 1 ? 's' : ''}
-            </span>
+            <span className="text-lg font-bold tabular-nums text-text-primary">{formatAmount(nextPayment.monto)}</span>
+            <span className="text-sm text-text-secondary">· {nextPayment.cuotas_pendientes} cuota{nextPayment.cuotas_pendientes !== 1 ? 's' : ''}</span>
           </div>
         </div>
       )}
@@ -199,11 +197,7 @@ function CardPaymentModal({ card, onClose, onSuccess }: CardPaymentModalProps) {
         <p className="mb-4 text-sm text-text-secondary">
           <span className="font-medium text-text-primary">{card.nombre}</span>
           {' · '}{card.moneda} {
-            new Intl.NumberFormat('es-AR').format(
-              typeof card.limite_comprometido === 'string'
-                ? parseFloat(card.limite_comprometido)
-                : card.limite_comprometido
-            )
+            formatAmount(card.limite_comprometido)
           } comprometido
         </p>
 
@@ -238,9 +232,7 @@ function CardPaymentModal({ card, onClose, onSuccess }: CardPaymentModalProps) {
               {paymentAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.nombre} — {a.moneda}{' '}
-                  {new Intl.NumberFormat('es-AR').format(
-                    typeof a.saldo_actual === 'string' ? parseFloat(a.saldo_actual) : a.saldo_actual
-                  )}
+                  {formatAmount(a.saldo_actual)}
                 </option>
               ))}
             </select>
@@ -313,8 +305,34 @@ export default function Cards() {
     );
   };
 
-  const activeCards = cards.filter((c) => c.activa);
-  const inactiveCards = cards.filter((c) => !c.activa);
+  const { activeCards, inactiveCards, nextPayment } = useMemo(() => {
+    const active = cards
+      .filter((c) => c.activa)
+      .sort((a, b) => {
+        const aDate = a.proximo_pago ? new Date(a.proximo_pago.fecha).getTime() : Number.MAX_SAFE_INTEGER;
+        const bDate = b.proximo_pago ? new Date(b.proximo_pago.fecha).getTime() : Number.MAX_SAFE_INTEGER;
+        if (aDate !== bDate) return aDate - bDate;
+        return parseAmount(b.limite_comprometido) - parseAmount(a.limite_comprometido);
+      });
+
+    const inactive = cards.filter((c) => !c.activa);
+    const next = active.find((c) => c.proximo_pago)?.proximo_pago;
+    const nextCard = active.find((c) => c.proximo_pago);
+
+    return {
+      activeCards: active,
+      inactiveCards: inactive,
+      nextPayment: next && nextCard
+        ? {
+            monto: next.monto,
+            moneda: next.moneda,
+            cuotas_pendientes: next.cuotas_pendientes,
+            fecha: next.fecha,
+            cardName: nextCard.nombre,
+          }
+        : undefined,
+    };
+  }, [cards]);
 
   return (
     <div className="min-h-screen bg-surface">
@@ -332,29 +350,7 @@ export default function Cards() {
         </div>
 
         {!isLoading && cards.length > 0 && (
-          (() => {
-            const next = cards
-              .filter((c) => c.activa && c.proximo_pago)
-              .sort(
-                (a, b) =>
-                  new Date(a.proximo_pago!.fecha).getTime() -
-                  new Date(b.proximo_pago!.fecha).getTime()
-              )[0]
-            return (
-              <TotalsBanner
-                cards={cards}
-                nextPayment={
-                  next
-                    ? {
-                        monto: next.proximo_pago!.monto,
-                        moneda: next.proximo_pago!.moneda,
-                        cuotas_pendientes: next.proximo_pago!.cuotas_pendientes,
-                      }
-                    : undefined
-                }
-              />
-            )
-          })()
+          <TotalsBanner cards={cards} nextPayment={nextPayment} />
         )}
 
         {isLoading ? (

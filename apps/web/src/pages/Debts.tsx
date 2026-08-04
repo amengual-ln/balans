@@ -1,13 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { useDebts, Debt, DireccionDeuda } from '@/hooks/useDebts';
-import { useAccounts } from '@/hooks/useAccounts';
+import { useAccounts, type Account } from '@/hooks/useAccounts';
 import { useSWRConfig } from 'swr';
 import DebtCard from '@/components/DebtCard';
-import { apiPost } from '@/hooks/useAPI';
+import { apiDelete, apiPost, apiPut } from '@/hooks/useAPI';
+import { parseAmount } from '@/lib/financeFormat';
 
 // ============================================
 // Toast Component
@@ -20,7 +21,10 @@ interface ToastProps {
 }
 
 function Toast({ message, type, onClose }: ToastProps) {
-  setTimeout(onClose, 3000);
+  useEffect(() => {
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
+  }, [onClose]);
 
   const bgColor = type === 'success' ? 'bg-positive' : 'bg-negative';
   const textColor = 'text-white';
@@ -110,21 +114,30 @@ const debtFormSchema = z.object({
 type DebtFormInput = z.infer<typeof debtFormSchema>;
 
 interface DebtFormProps {
+  debt?: Debt;
   onClose: () => void;
   onSubmit: (data: DebtFormInput) => void;
   submitting: boolean;
 }
 
-function DebtForm({ onClose, onSubmit, submitting }: DebtFormProps) {
-  const [direccion, setDireccion] = useState<DireccionDeuda>('POR_PAGAR');
+function DebtForm({ debt, onClose, onSubmit, submitting }: DebtFormProps) {
+  const [direccion, setDireccion] = useState<DireccionDeuda>(debt?.direccion ?? 'POR_PAGAR');
+  const [showAdvanced, setShowAdvanced] = useState(Boolean(debt));
+  const isEditing = Boolean(debt);
 
   const form = useForm<DebtFormInput>({
     resolver: zodResolver(debtFormSchema),
     defaultValues: {
-      tipo: 'PERSONAL',
-      direccion: 'POR_PAGAR',
-      moneda: 'ARS',
-      fecha_inicio: new Date().toISOString().split('T')[0],
+      tipo: debt?.tipo ?? 'PERSONAL',
+      direccion: debt?.direccion ?? 'POR_PAGAR',
+      acreedor: debt?.acreedor ?? '',
+      monto_total: debt ? parseAmount(debt.monto_total) : undefined,
+      moneda: debt?.moneda ?? 'ARS',
+      fecha_inicio: debt?.fecha_inicio
+        ? new Date(debt.fecha_inicio).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0],
+      cantidad_cuotas: debt?.cantidad_cuotas ?? undefined,
+      monto_cuota: debt?.monto_cuota ? parseAmount(debt.monto_cuota) : undefined,
     },
   });
 
@@ -137,7 +150,7 @@ function DebtForm({ onClose, onSubmit, submitting }: DebtFormProps) {
     <div className="fixed inset-0 bg-black/50 flex items-end z-50 animate-fade-in">
       <div className="bg-white w-full rounded-t-lg p-6 animate-slide-up max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">Nueva deuda</h2>
+          <h2 className="text-xl font-bold">{isEditing ? 'Editar deuda' : 'Nueva deuda'}</h2>
           <button
             onClick={onClose}
             className="text-text-secondary hover:text-text-primary"
@@ -200,40 +213,6 @@ function DebtForm({ onClose, onSubmit, submitting }: DebtFormProps) {
             )}
           </div>
 
-          {/* Tipo */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-text-primary">
-              Tipo
-            </label>
-            <select
-              {...form.register('tipo')}
-              className="w-full px-3 py-2 border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="PERSONAL">Personal</option>
-              <option value="CREDITO_BILLETERA">Billetera</option>
-              <option value="PRESTAMO">Préstamo</option>
-              <option value="OTRO">Otro</option>
-            </select>
-          </div>
-
-          {/* Moneda */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-text-primary">
-              Moneda
-            </label>
-            <select
-              {...form.register('moneda')}
-              className="w-full px-3 py-2 border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="ARS">ARS</option>
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="BRL">BRL</option>
-              <option value="CLP">CLP</option>
-              <option value="UYU">UYU</option>
-            </select>
-          </div>
-
           {/* Monto Total */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-text-primary">
@@ -253,45 +232,86 @@ function DebtForm({ onClose, onSubmit, submitting }: DebtFormProps) {
             )}
           </div>
 
-          {/* Fecha Inicio */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-text-primary">
-              Fecha de inicio
-            </label>
-            <input
-              type="date"
-              {...form.register('fecha_inicio')}
-              className="w-full px-3 py-2 border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((value) => !value)}
+            className="text-sm font-medium text-primary"
+          >
+            {showAdvanced ? 'Ocultar opciones' : 'Más opciones'}
+          </button>
 
-          {/* Cantidad de cuotas (optional) */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-text-primary">
-              Cantidad de cuotas (opcional)
-            </label>
-            <input
-              type="number"
-              placeholder="Dejar en blanco si no aplica"
-              step="1"
-              {...form.register('cantidad_cuotas')}
-              className="w-full px-3 py-2 border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+          {showAdvanced && (
+            <div className="space-y-4 rounded-lg border border-border bg-surface/40 p-3">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-text-primary">
+                  Tipo
+                </label>
+                <select
+                  {...form.register('tipo')}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="PERSONAL">Personal</option>
+                  <option value="CREDITO_BILLETERA">Billetera</option>
+                  <option value="PRESTAMO">Préstamo</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </div>
 
-          {/* Monto por cuota (optional) */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-text-primary">
-              Monto por cuota (opcional)
-            </label>
-            <input
-              type="number"
-              placeholder="0.00"
-              step="0.01"
-              {...form.register('monto_cuota')}
-              className="w-full px-3 py-2 border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-text-primary">
+                  Moneda
+                </label>
+                <select
+                  {...form.register('moneda')}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="ARS">ARS</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="BRL">BRL</option>
+                  <option value="CLP">CLP</option>
+                  <option value="UYU">UYU</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-text-primary">
+                  Fecha de inicio
+                </label>
+                <input
+                  type="date"
+                  {...form.register('fecha_inicio')}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-text-primary">
+                  Cantidad de cuotas (opcional)
+                </label>
+                <input
+                  type="number"
+                  placeholder="Dejar en blanco si no aplica"
+                  step="1"
+                  {...form.register('cantidad_cuotas')}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-text-primary">
+                  Monto por cuota (opcional)
+                </label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  step="0.01"
+                  {...form.register('monto_cuota')}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Submit */}
           <div className="flex gap-3 pt-4">
@@ -307,7 +327,7 @@ function DebtForm({ onClose, onSubmit, submitting }: DebtFormProps) {
               disabled={submitting}
               className="flex-1 py-2 px-4 rounded-lg font-medium text-white bg-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
-              {submitting ? 'Creando...' : 'Crear'}
+              {submitting ? 'Guardando...' : isEditing ? 'Guardar' : 'Crear'}
             </button>
           </div>
         </form>
@@ -331,7 +351,7 @@ type PayDebtInput = z.infer<typeof payDebtSchema>;
 
 interface DebtPaymentModalProps {
   debt: Debt;
-  accounts: Array<{ id: string; nombre: string; moneda: string }>;
+  accounts: Account[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -344,10 +364,12 @@ function DebtPaymentModal({
 }: DebtPaymentModalProps) {
   const isPayable = debt.direccion === 'POR_PAGAR';
   const monto_pendiente = parseFloat(debt.monto_pendiente.toString());
+  const filteredAccounts = accounts.filter((a) => a.activa && a.tipo !== 'FONDO_DESCUENTO');
 
   const form = useForm<PayDebtInput>({
     resolver: zodResolver(payDebtSchema),
     defaultValues: {
+      cuenta_id: filteredAccounts[0]?.id ?? '',
       monto: monto_pendiente,
       fecha: new Date().toISOString().split('T')[0],
       descripcion: `${isPayable ? 'Pago' : 'Cobro'} deuda ${debt.acreedor}`,
@@ -382,8 +404,6 @@ function DebtPaymentModal({
       setSubmitting(false);
     }
   };
-
-  const filteredAccounts = accounts.filter((a) => a.id !== 'FONDO_DESCUENTO');
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end z-50 animate-fade-in">
@@ -511,26 +531,41 @@ function DebtPaymentModal({
 // Main Debts Page
 // ============================================
 
+type DebtViewFilter = 'TODAS' | 'POR_PAGAR' | 'POR_COBRAR';
+
 export default function Debts() {
   const { debts, isLoading, mutate } = useDebts();
   const { accounts } = useAccounts();
   const { mutate: globalMutate } = useSWRConfig();
 
   const [showForm, setShowForm] = useState(false);
+  const [editDebt, setEditDebt] = useState<Debt | null>(null);
+  const [deleteDebt, setDeleteDebt] = useState<Debt | null>(null);
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
+  const [viewFilter, setViewFilter] = useState<DebtViewFilter>('TODAS');
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: 'success' | 'error';
   } | null>(null);
 
-  // Split debts into categories
   const { payable, receivable, settled } = useMemo(() => {
-    const p = debts.filter((d) => d.direccion === 'POR_PAGAR' && !d.saldada);
-    const r = debts.filter((d) => d.direccion === 'POR_COBRAR' && !d.saldada);
-    const s = debts.filter((d) => d.saldada);
-    return { payable: p, receivable: r, settled: s };
+    const sortByOpenAmount = (a: Debt, b: Debt) =>
+      parseAmount(b.monto_pendiente) - parseAmount(a.monto_pendiente);
+    return {
+      payable: debts
+        .filter((d) => d.direccion === 'POR_PAGAR' && !d.saldada)
+        .sort(sortByOpenAmount),
+      receivable: debts
+        .filter((d) => d.direccion === 'POR_COBRAR' && !d.saldada)
+        .sort(sortByOpenAmount),
+      settled: debts.filter((d) => d.saldada),
+    };
   }, [debts]);
+
+  const visiblePayable = viewFilter === 'POR_COBRAR' ? [] : payable;
+  const visibleReceivable = viewFilter === 'POR_PAGAR' ? [] : receivable;
 
   const handleCreateDebt = async (data: DebtFormInput) => {
     setSubmitting(true);
@@ -549,6 +584,45 @@ export default function Debts() {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleUpdateDebt = async (data: DebtFormInput) => {
+    if (!editDebt) return;
+    setSubmitting(true);
+    try {
+      await apiPut(`/api/deudas/${editDebt.id}`, {
+        ...data,
+        fecha_inicio: new Date(data.fecha_inicio).toISOString(),
+      });
+      mutate();
+      setEditDebt(null);
+      setToast({ message: 'Deuda actualizada exitosamente', type: 'success' });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : 'Error al actualizar deuda',
+        type: 'error',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteDebt = async () => {
+    if (!deleteDebt) return;
+    setDeleting(true);
+    try {
+      await apiDelete(`/api/deudas/${deleteDebt.id}`);
+      mutate();
+      setDeleteDebt(null);
+      setToast({ message: 'Deuda eliminada', type: 'success' });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : 'Error al eliminar deuda',
+        type: 'error',
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -601,44 +675,68 @@ export default function Debts() {
         {/* Totals Banner */}
         <TotalsBanner debts={debts} />
 
-        {/* Lo que debo section */}
+        <div className="mb-6 grid grid-cols-3 rounded-xl border border-border bg-white p-1 text-sm font-medium">
+          {[
+            ['TODAS', 'Todo'],
+            ['POR_PAGAR', 'Debo'],
+            ['POR_COBRAR', 'Me deben'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setViewFilter(value as DebtViewFilter)}
+              className={`rounded-lg px-3 py-2 transition-colors ${
+                viewFilter === value
+                  ? 'bg-primary text-white'
+                  : 'text-text-secondary hover:bg-surface'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-text-primary mb-4">
             Lo que debo
+            <span className="ml-2 text-sm font-normal text-text-secondary">({payable.length})</span>
           </h2>
-          {payable.length === 0 ? (
+          {visiblePayable.length === 0 ? (
             <p className="text-text-secondary text-center py-8">
               Sin deudas por pagar
             </p>
           ) : (
             <div className="grid gap-3">
-              {payable.map((debt) => (
+              {visiblePayable.map((debt) => (
                 <DebtCard
                   key={debt.id}
                   debt={debt}
                   onPay={() => setSelectedDebt(debt)}
+                  onEdit={setEditDebt}
+                  onDelete={setDeleteDebt}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* Me deben section */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-text-primary mb-4">
             Me deben
+            <span className="ml-2 text-sm font-normal text-text-secondary">({receivable.length})</span>
           </h2>
-          {receivable.length === 0 ? (
+          {visibleReceivable.length === 0 ? (
             <p className="text-text-secondary text-center py-8">
               Sin deudas por cobrar
             </p>
           ) : (
             <div className="grid gap-3">
-              {receivable.map((debt) => (
+              {visibleReceivable.map((debt) => (
                 <DebtCard
                   key={debt.id}
                   debt={debt}
                   onPay={() => setSelectedDebt(debt)}
+                  onEdit={setEditDebt}
+                  onDelete={setDeleteDebt}
                 />
               ))}
             </div>
@@ -658,6 +756,7 @@ export default function Debts() {
                     key={debt.id}
                     debt={debt}
                     onPay={() => {}}
+                    onDelete={setDeleteDebt}
                   />
                 ))}
               </div>
@@ -675,6 +774,15 @@ export default function Debts() {
         />
       )}
 
+      {editDebt && (
+        <DebtForm
+          debt={editDebt}
+          onClose={() => setEditDebt(null)}
+          onSubmit={handleUpdateDebt}
+          submitting={submitting}
+        />
+      )}
+
       {selectedDebt && (
         <DebtPaymentModal
           debt={selectedDebt}
@@ -682,6 +790,35 @@ export default function Debts() {
           onClose={() => setSelectedDebt(null)}
           onSuccess={handlePayDebt}
         />
+      )}
+
+      {deleteDebt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-3 flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-negative" />
+              <h3 className="text-lg font-bold text-text-primary">Eliminar deuda</h3>
+            </div>
+            <p className="mb-6 text-sm text-text-secondary">
+              ¿Eliminar la deuda con <strong>{deleteDebt.acreedor}</strong>? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteDebt(null)}
+                className="flex-1 rounded-lg bg-surface py-2 px-4 font-medium text-text-primary transition-colors hover:bg-surface/80"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteDebt}
+                disabled={deleting}
+                className="flex-1 rounded-lg bg-negative py-2 px-4 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import AccountCard, { type Account } from '@/components/AccountCard';
 import AccountForm, { type AccountFormPayload } from '@/components/AccountForm';
 import RecargarFondoModal from '@/components/RecargarFondoModal';
 import { useAccounts } from '@/hooks/useAccounts';
 import { apiPost } from '@/hooks/useAPI';
+import { formatAmount } from '@/lib/financeFormat';
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -69,13 +70,130 @@ function TotalsBanner({ accounts }: { accounts: Account[] }) {
               }`}
             >
               {total < 0 ? '-' : ''}
-              {new Intl.NumberFormat('es-AR', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2,
-              }).format(Math.abs(total))}
+              {formatAmount(total)}
             </span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Adjust balance modal ────────────────────────────────────────────────────
+
+interface AdjustBalanceModalProps {
+  account: Account;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function AdjustBalanceModal({ account, onClose, onSuccess }: AdjustBalanceModalProps) {
+  const currentBalance =
+    typeof account.saldo_actual === 'string'
+      ? parseFloat(account.saldo_actual)
+      : account.saldo_actual;
+  const [newBalance, setNewBalance] = useState(String(currentBalance));
+  const [description, setDescription] = useState('Ajuste manual de saldo');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const diff = (parseFloat(newBalance) || 0) - currentBalance;
+
+  const handleSubmit = async () => {
+    const parsed = parseFloat(newBalance);
+    if (Number.isNaN(parsed) || parsed < 0 || !description.trim()) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      await apiPost(`/api/cuentas/${account.id}/ajustar`, {
+        nuevo_saldo: parsed,
+        descripcion: description.trim(),
+      });
+      onSuccess();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al ajustar saldo');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-md animate-fade-in rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-text-primary">Ajustar saldo</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <p className="mb-4 text-sm text-text-secondary">
+          <span className="font-medium text-text-primary">{account.nombre}</span>
+          {' · saldo actual '}
+          {account.moneda} {formatAmount(currentBalance)}
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-text-primary">
+              Nuevo saldo
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={newBalance}
+              onChange={(e) => setNewBalance(e.target.value)}
+              inputMode="decimal"
+              autoFocus
+              className="w-full rounded-lg border border-border px-3 py-2.5 text-sm text-text-primary outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <p className={`mt-1 text-xs ${diff < 0 ? 'text-negative' : diff > 0 ? 'text-positive' : 'text-text-secondary'}`}>
+              Movimiento de ajuste: {account.moneda} {formatAmount(diff, { signed: true })}
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-text-primary">
+              Descripción
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-lg border border-border px-3 py-2.5 text-sm text-text-primary outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          {error && (
+            <p className="rounded-lg bg-negative/10 px-3 py-2 text-sm text-negative">{error}</p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-border py-2.5 text-sm font-medium text-text-secondary transition-colors hover:bg-surface"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !description.trim() || parseFloat(newBalance) < 0}
+              className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {submitting ? 'Ajustando...' : 'Guardar ajuste'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -90,6 +208,7 @@ export default function Accounts() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [recargarAccount, setRecargarAccount] = useState<Account | null>(null);
+  const [adjustAccount, setAdjustAccount] = useState<Account | null>(null);
 
   // ── Create account (CU-001) ─────────────────────────────────────────────
 
@@ -109,6 +228,10 @@ export default function Accounts() {
 
   const handleCardClick = (account: Account) => {
     navigate(`/movements?cuenta_id=${account.id}&cuenta_nombre=${encodeURIComponent(account.nombre)}`);
+  };
+
+  const handleTransfer = (account: Account) => {
+    navigate(`/movements?quick=transfer&cuenta_id=${account.id}&cuenta_nombre=${encodeURIComponent(account.nombre)}`);
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -161,6 +284,8 @@ export default function Accounts() {
                   account={account}
                   onClick={handleCardClick}
                   onRecargar={account.tipo === 'FONDO_DESCUENTO' ? setRecargarAccount : undefined}
+                  onAdjust={account.tipo !== 'FONDO_DESCUENTO' ? setAdjustAccount : undefined}
+                  onTransfer={account.tipo !== 'FONDO_DESCUENTO' ? handleTransfer : undefined}
                 />
               ))}
             </div>
@@ -199,6 +324,17 @@ export default function Accounts() {
           onClose={() => setRecargarAccount(null)}
           onSuccess={() => {
             setToast('Fondo recargado exitosamente');
+            mutate();
+          }}
+        />
+      )}
+
+      {adjustAccount && (
+        <AdjustBalanceModal
+          account={adjustAccount}
+          onClose={() => setAdjustAccount(null)}
+          onSuccess={() => {
+            setToast('Saldo ajustado exitosamente');
             mutate();
           }}
         />

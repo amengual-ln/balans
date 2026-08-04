@@ -7,9 +7,9 @@ import Subscriptions from '../pages/Subscriptions'
 vi.mock('swr', () => ({ mutate: vi.fn(), useSWRConfig: vi.fn(() => ({ mutate: vi.fn() })) }))
 
 const mockSubscriptions = [
-  { id: 's1', nombre: 'Netflix', monto: '15.99', moneda: 'USD', frecuencia: 'MENSUAL' as const, activo: true, categoria: 'Streaming', fecha_inicio: '2024-01-01', fecha_fin: null },
-  { id: 's2', nombre: 'Spotify', monto: '4.99', moneda: 'USD', frecuencia: 'MENSUAL' as const, activo: true, categoria: 'Streaming', fecha_inicio: '2024-01-01', fecha_fin: null },
-  { id: 's3', nombre: 'Old Service', monto: '100', moneda: 'ARS', frecuencia: 'MENSUAL' as const, activo: false, categoria: 'Otro', fecha_inicio: '2023-01-01', fecha_fin: '2024-01-01' },
+  { id: 's1', nombre: 'Netflix', monto: '15.99', moneda: 'USD', frecuencia: 'MENSUAL' as const, dia_pago: 5, proxima_fecha_pago: '2026-08-05', activo: true, categoria: 'Streaming', fecha_inicio: '2024-01-01', fecha_fin: null, created_at: '2024-01-01', updated_at: '2024-01-01', cuenta: { id: 'a1', nombre: 'Banco Galicia', moneda: 'ARS' } },
+  { id: 's2', nombre: 'Spotify', monto: '4.99', moneda: 'USD', frecuencia: 'MENSUAL' as const, dia_pago: 20, proxima_fecha_pago: '2026-08-20', activo: true, categoria: 'Streaming', fecha_inicio: '2024-01-01', fecha_fin: null, created_at: '2024-01-01', updated_at: '2024-01-01', cuenta: { id: 'a1', nombre: 'Banco Galicia', moneda: 'ARS' } },
+  { id: 's3', nombre: 'Old Service', monto: '100', moneda: 'ARS', frecuencia: 'MENSUAL' as const, dia_pago: 1, proxima_fecha_pago: '2024-01-01', activo: false, categoria: 'Otro', fecha_inicio: '2023-01-01', fecha_fin: '2024-01-01', created_at: '2023-01-01', updated_at: '2024-01-01', cuenta: { id: 'a1', nombre: 'Banco Galicia', moneda: 'ARS' } },
 ]
 
 const mockUseSubscriptions = vi.fn(() => ({ subscriptions: mockSubscriptions, isLoading: false, mutate: vi.fn() }))
@@ -86,9 +86,10 @@ describe('Subscriptions', () => {
       expect(screen.getByRole('button', { name: /nueva/i })).toBeInTheDocument()
     })
 
-    it('renders activas section', () => {
+    it('renders urgency sections', () => {
       renderPage()
-      expect(screen.getByText('Activas')).toBeInTheDocument()
+      expect(screen.getByText(/próximos 7 días/i)).toBeInTheDocument()
+      expect(screen.getByText(/más adelante/i)).toBeInTheDocument()
     })
 
     it('renders inactive section in details element', () => {

@@ -1,5 +1,6 @@
-import { Landmark } from 'lucide-react';
+import { Landmark, Pencil, Trash2 } from 'lucide-react';
 import { Debt } from '@/hooks/useDebts';
+import { formatAmount } from '@/lib/financeFormat';
 
 interface PaidProgressBarProps {
   paid: number;
@@ -29,9 +30,11 @@ function PaidProgressBar({ paid, total }: PaidProgressBarProps) {
 interface DebtCardProps {
   debt: Debt;
   onPay: (debt: Debt) => void;
+  onEdit?: (debt: Debt) => void;
+  onDelete?: (debt: Debt) => void;
 }
 
-export default function DebtCard({ debt, onPay }: DebtCardProps) {
+export default function DebtCard({ debt, onPay, onEdit, onDelete }: DebtCardProps) {
   const monto_total = parseFloat(debt.monto_total.toString());
   const monto_pendiente = parseFloat(debt.monto_pendiente.toString());
   const monto_pagado = monto_total - monto_pendiente;
@@ -64,11 +67,31 @@ export default function DebtCard({ debt, onPay }: DebtCardProps) {
             {typeMap[debt.tipo]}
           </span>
         </div>
-        {debt.saldada && (
-          <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-positive/10 border border-positive/20 text-positive">
-            Saldada
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          {debt.saldada && (
+            <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-positive/10 border border-positive/20 text-positive">
+              Saldada
+            </span>
+          )}
+          {onEdit && !debt.saldada && (
+            <button
+              onClick={() => onEdit(debt)}
+              className="rounded-lg border border-border p-1.5 text-text-secondary transition-colors hover:border-primary hover:text-primary"
+              title="Editar deuda"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={() => onDelete(debt)}
+              className="rounded-lg border border-border p-1.5 text-text-secondary transition-colors hover:border-negative hover:text-negative"
+              title="Eliminar deuda"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Counterparty */}
@@ -82,7 +105,7 @@ export default function DebtCard({ debt, onPay }: DebtCardProps) {
       {/* Pending Amount */}
       <div className="mb-4">
         <p className="text-text-primary text-xl font-bold">
-          {debt.moneda} {monto_pendiente.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+          {debt.moneda} {formatAmount(monto_pendiente)}
         </p>
       </div>
 
@@ -93,7 +116,7 @@ export default function DebtCard({ debt, onPay }: DebtCardProps) {
 
       {/* Paid Summary */}
       <p className="text-text-secondary text-sm mb-4">
-        {debt.moneda} {monto_pagado.toLocaleString('es-AR', { maximumFractionDigits: 2 })} de {monto_total.toLocaleString('es-AR', { maximumFractionDigits: 2 })} {isPayable ? 'pagado' : 'cobrado'}
+        {debt.moneda} {formatAmount(monto_pagado)} de {formatAmount(monto_total)} {isPayable ? 'pagado' : 'cobrado'}
       </p>
 
       {/* Action Button */}

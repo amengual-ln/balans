@@ -1,5 +1,6 @@
 import { CreditCard } from 'lucide-react';
 import type { Card } from '@/hooks/useCards';
+import { dueLabel, dueTone, formatAmount, formatShortDate } from '@/lib/financeFormat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,14 +19,6 @@ const TIPO_COLORS: Record<TipoTarjeta, string> = {
   MASTERCARD: 'bg-orange-50 text-orange-700',
   OTRA: 'bg-surface text-text-secondary',
 };
-
-function formatAmount(amount: string | number): string {
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('es-AR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(Math.abs(num));
-}
 
 function UtilizationBar({ pct }: { pct: number }) {
   const color =
@@ -50,6 +43,13 @@ export default function CardCard({ card, onClick, onPay }: CardCardProps) {
   const isOverLimit = disponible < 0;
   const utilizationPct = total > 0 ? ((total - disponible) / total) * 100 : 0;
   const tipoColor = TIPO_COLORS[tipo as TipoTarjeta] ?? TIPO_COLORS.OTRA;
+  const nextPaymentTone = card.proximo_pago ? dueTone(card.proximo_pago.fecha) : null;
+  const nextPaymentColor =
+    nextPaymentTone === 'danger'
+      ? 'border-negative/20 bg-negative/10 text-negative'
+      : nextPaymentTone === 'warning'
+        ? 'border-warning/30 bg-warning/10 text-warning'
+        : 'border-border bg-surface text-text-secondary';
 
   return (
     <div
@@ -106,6 +106,18 @@ export default function CardCard({ card, onClick, onPay }: CardCardProps) {
       <p className="mt-1.5 text-xs text-text-secondary">
         {moneda} {formatAmount(limite_comprometido)} comprometido de {formatAmount(limite_total)}
       </p>
+
+      {card.proximo_pago && (
+        <div className={`mt-3 rounded-lg border px-3 py-2 ${nextPaymentColor}`}>
+          <p className="text-xs font-medium">
+            {dueLabel(card.proximo_pago.fecha)} · {formatShortDate(card.proximo_pago.fecha)}
+          </p>
+          <p className="mt-0.5 text-xs">
+            {card.proximo_pago.moneda} {formatAmount(card.proximo_pago.monto)} · {card.proximo_pago.cuotas_pendientes} cuota
+            {card.proximo_pago.cuotas_pendientes !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
 
       {/* Pay CTA */}
       {activa && (

@@ -140,6 +140,7 @@ export default function Movements() {
     cuentaId: searchParams.get('cuenta_id'),
   })
   const { submitQuickAdd } = useQuickAddMovement()
+  const quickAction = searchParams.get('quick')
 
   // ── Period navigation ────────────────────────────────────────────────────
 
@@ -214,7 +215,15 @@ export default function Movements() {
       </div>
 
       {/* ── QuickAdd FAB ── */}
-      <QuickAdd onSubmit={submitQuickAdd} />
+      <QuickAdd
+        onSubmit={submitQuickAdd}
+        initialIntent={{
+          open: quickAction === 'transfer' || quickAction === 'card',
+          tipo: quickAction === 'transfer' ? 'TRANSFERENCIA' : 'GASTO',
+          cuentaId: searchParams.get('cuenta_id'),
+          tarjetaId: searchParams.get('tarjeta_id'),
+        }}
+      />
 
       {/* ── Edit movement modal ── */}
       {editTarget && (
