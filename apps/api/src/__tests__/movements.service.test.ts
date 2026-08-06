@@ -419,17 +419,19 @@ describe('MovementsService — getMovementStats', () => {
     expect(stats.ingresos).toBe(800)
   })
 
-  it('aggregates GASTO, PAGO_TARJETA, PAGO_DEUDA, GASTO_TARJETA_CON_DESCUENTO as expense', async () => {
+  it('counts subscriptions but not card purchases as monthly expenses', async () => {
     configureStore({
       movimientos: [
         { id: 'm1', usuario_id: UID, tipo: 'GASTO', monto: 100, categoria: 'Comida', cuenta_id: ACCOUNT_ID },
         { id: 'm2', usuario_id: UID, tipo: 'PAGO_TARJETA', monto: 200, categoria: 'Tarjeta', cuenta_id: ACCOUNT_ID },
         { id: 'm3', usuario_id: UID, tipo: 'PAGO_DEUDA', monto: 150, categoria: 'Deuda', cuenta_id: ACCOUNT_ID },
         { id: 'm4', usuario_id: UID, tipo: 'GASTO_TARJETA_CON_DESCUENTO', monto: 80, categoria: 'Compra', cuenta_id: ACCOUNT_ID },
+        { id: 'm5', usuario_id: UID, tipo: 'SUSCRIPCION', monto: 60, categoria: 'Conectividad', cuenta_id: ACCOUNT_ID },
+        { id: 'm6', usuario_id: UID, tipo: 'GASTO_TARJETA', monto: 90, categoria: 'Compra', cuenta_id: ACCOUNT_ID },
       ],
     })
     const stats = await movementsService.getMovementStats(UID)
-    expect(stats.gastos).toBe(530)
+    expect(stats.gastos).toBe(590)
   })
 })
 

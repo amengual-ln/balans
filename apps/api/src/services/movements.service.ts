@@ -1143,7 +1143,14 @@ export class MovementsService {
     assertOk(error)
 
     const INCOME_TYPES = new Set(['INGRESO', 'RETORNO_INVERSION', 'COBRO_DEUDA'])
-    const EXPENSE_TYPES = new Set(['GASTO', 'PAGO_TARJETA', 'PAGO_DEUDA', 'GASTO_CON_DESCUENTO', 'GASTO_TARJETA_CON_DESCUENTO'])
+    const EXPENSE_TYPES = new Set([
+      'GASTO',
+      'PAGO_TARJETA',
+      'PAGO_DEUDA',
+      'SUSCRIPCION',
+      'GASTO_CON_DESCUENTO',
+      'GASTO_TARJETA_CON_DESCUENTO',
+    ])
 
     let totalIngresos = 0
     let totalGastos = 0

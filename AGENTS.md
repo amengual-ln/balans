@@ -76,16 +76,28 @@ cd apps/api && pnpm prisma:generate
 ## Architecture
 
 - **Monorepo:** pnpm workspaces (`apps/web`, `apps/api`).
-- **Backend:** Express + Prisma + Zod, port 3001, ESM.
-- **Frontend:** React + Vite + Tailwind + Zustand + SWR, port 3000.
+- **Backend:** Express + Supabase JS + Zod, port 3001, ESM; Prisma defines schema/migrations.
+- **Frontend:** React + Vite + Tailwind + SWR, port 3000.
 - **Database:** Supabase PostgreSQL with RLS; Prisma binary targets `native` + `rhel-openssl-3.0.x`.
 - **Auth:** `x-user-id` header (placeholder; no real auth yet).
+
+## Supabase access
+
+- Application data lives in PostgreSQL schema **`freya_balans`**, not `public`.
+- Backend client already sets `db: { schema: 'freya_balans' }` in `apps/api/src/lib/supabase.ts`.
+- Manual Supabase JS queries must use `.schema('freya_balans')` before `.from(...)`.
+- Direct SQL must qualify tables, for example `freya_balans.movimientos`.
+- Backend credentials live in `apps/api/.env`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `DATABASE_URL`. Never print or expose their values.
+- Service-role key is backend/maintenance only; never send it to frontend code.
+- Before maintenance updates: query exact rows first, scope by user/date/type/IDs, update only confirmed rows, then verify affected count and values.
 
 ## Project patterns
 
 - Frontend SWR hooks live in `apps/web/src/hooks/`.
-- API base is `http://localhost:3001/api`.
+- Frontend uses relative `/api`; Vite proxies it to `http://localhost:3001` in development.
 - Every API request must include `x-user-id`.
+- Shared money/date formatting lives in `apps/web/src/lib/financeFormat.ts`.
+- `/` is the daily dashboard; operational screens can open filtered movements with `cuenta_id` or `tarjeta_id`, and QuickAdd intents with `quick=transfer|card`.
 - CRUD flow:
   1. Route: `apps/api/src/routes/{feature}.ts`
   2. Service: `apps/api/src/services/{feature}.service.ts`
@@ -97,6 +109,8 @@ cd apps/api && pnpm prisma:generate
 
 - **Balance:** sum of movements; transfers excluded from monthly balance.
 - **Card/debt payments:** expenses.
+- **Subscription payments:** expenses; payment movement inherits subscription category.
+- **Card purchases:** `GASTO_TARJETA` does not affect monthly balance; `PAGO_TARJETA` does.
 - **Budgets:** informative only; never block transactions.
 - **Account currency:** immutable after account has movements.
 - **Deletion:** accounts/cards with movements cannot be deleted.

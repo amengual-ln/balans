@@ -231,7 +231,7 @@ export class SuscripcionesService {
     const { data: sub, error: subErr } = await supabase
       .from('suscripciones')
       .select(
-        'usuario_id, nombre, monto, moneda, activo, fecha_fin, frecuencia, dia_pago, proxima_fecha_pago, cuenta_id'
+        'usuario_id, nombre, monto, moneda, activo, fecha_fin, frecuencia, dia_pago, proxima_fecha_pago, cuenta_id, categoria'
       )
       .eq('id', id)
       .eq('usuario_id', usuarioId)
@@ -282,7 +282,7 @@ export class SuscripcionesService {
         moneda: sub.moneda,
         descripcion: data.descripcion ?? `Pago suscripción: ${sub.nombre}`,
         fecha: data.fecha ?? new Date(),
-        categoria: null,
+        categoria: sub.categoria,
       })
       .select('id')
       .single()
