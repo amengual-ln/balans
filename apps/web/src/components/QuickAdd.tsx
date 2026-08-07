@@ -3,6 +3,8 @@ import { X, Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, Gift, Arro
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCards } from '@/hooks/useCards';
 import { mutate as globalMutate } from 'swr';
+import { COMMON_CATEGORIES } from '@/lib/categories';
+import type { ReviewField } from '@/lib/smartInput';
 
 const LAST_ACCOUNT_KEY = 'freya_last_account';
 
@@ -24,37 +26,30 @@ export interface QuickAddData {
   cantidad_cuotas?: number;
 }
 
+export interface QuickAddInitialIntent {
+  open?: boolean;
+  tipo?: 'INGRESO' | 'GASTO' | 'TRANSFERENCIA';
+  monto?: number;
+  descripcion?: string;
+  categoria?: string;
+  fecha?: string;
+  cuentaId?: string | null;
+  destinoId?: string | null;
+  tarjetaId?: string | null;
+  cuotas?: number;
+  tasa?: number;
+  descuento?: number;
+  fondoId?: string | null;
+  warnings?: string[];
+  reviewFields?: ReviewField[];
+  requestId?: string;
+}
+
 interface QuickAddProps {
   onSubmit?: (data: QuickAddData) => void | Promise<void>;
-  initialIntent?: {
-    open?: boolean;
-    tipo?: 'INGRESO' | 'GASTO' | 'TRANSFERENCIA';
-    cuentaId?: string | null;
-    tarjetaId?: string | null;
-  };
+  initialIntent?: QuickAddInitialIntent;
+  onSuccess?: () => void;
 }
-
-interface Category {
-  id: string;
-  name: string;
-  icon: string;
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const COMMON_CATEGORIES: Category[] = [
-  { id: 'comida', name: 'Comida', icon: '🍽️' },
-  { id: 'transporte', name: 'Transporte', icon: '🚗' },
-  { id: 'entretenimiento', name: 'Ocio', icon: '🎬' },
-  { id: 'servicios', name: 'Servicios', icon: '💡' },
-  { id: 'salud', name: 'Salud', icon: '⚕️' },
-  { id: 'compras', name: 'Compras', icon: '🛍️' },
-  { id: 'ropa', name: 'Ropa', icon: '👕' },
-  { id: 'hogar', name: 'Hogar', icon: '🏠' },
-  { id: 'musica_banda', name: 'Musica/Banda', icon: '🎸' },
-  { id: 'innecesario', name: 'Innecesario', icon: '🐜' },
-  { id: 'otros', name: 'Otros', icon: '📦' },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,7 +70,7 @@ function formatBalance(amount: string | number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
+export default function QuickAdd({ onSubmit, initialIntent, onSuccess }: QuickAddProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [tipo, setTipo] = useState<'INGRESO' | 'GASTO' | 'TRANSFERENCIA'>('GASTO');
   const [monto, setMonto] = useState('');
@@ -96,6 +91,8 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
   const [fecha, setFecha] = useState('');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [reviewFields, setReviewFields] = useState<ReviewField[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const amountInputRef = useRef<HTMLInputElement>(null);
@@ -122,15 +119,29 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
     if (!initialIntent?.open) return;
 
     if (initialIntent.tipo) setTipo(initialIntent.tipo);
+    setMonto(initialIntent.monto ? String(initialIntent.monto) : '');
+    setDescripcion(initialIntent.descripcion ?? '');
+    setCategoria(initialIntent.categoria);
     if (initialIntent.cuentaId) setSelectedAccountId(initialIntent.cuentaId);
     if (initialIntent.tarjetaId) setSelectedAccountId(`card:${initialIntent.tarjetaId}`);
-    if (initialIntent.tipo === 'TRANSFERENCIA') setShowAdvancedOptions(true);
+    if (initialIntent.destinoId) setDestinoAccountId(initialIntent.destinoId);
+    setCantidadCuotas(initialIntent.cuotas ?? 1);
+    setTasaConversion(initialIntent.tasa ? String(initialIntent.tasa) : '');
+    setDescuentoActivo(initialIntent.descuento !== undefined);
+    setPorcentajeDescuento(initialIntent.descuento ?? 70);
+    if (initialIntent.fondoId) setFondoDescuentoId(initialIntent.fondoId);
+    setFechaActiva(Boolean(initialIntent.fecha));
+    setFecha(initialIntent.fecha ?? '');
+    setWarnings(initialIntent.warnings ?? []);
+    setReviewFields(initialIntent.reviewFields ?? []);
+    setShowAdvancedOptions(true);
     setIsOpen(true);
   }, [
     initialIntent?.open,
     initialIntent?.tipo,
     initialIntent?.cuentaId,
     initialIntent?.tarjetaId,
+    initialIntent?.requestId,
   ]);
 
   // ── Toast auto-dismiss ────────────────────────────────────────────────────
@@ -194,6 +205,8 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
       setPorcentajeDescuento(70);
       setTasaConversion('');
       setCantidadCuotas(1);
+      setWarnings([]);
+      setReviewFields([]);
     }, 200);
   };
 
@@ -225,6 +238,7 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
       };
 
       await onSubmit?.(data);
+      onSuccess?.();
 
       // Persist last used account (not card)
       if (selectedAccountId && !isCard) {
@@ -475,6 +489,9 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
                   onChange={(e) => {
                     const newOrigin = e.target.value || undefined;
                     setSelectedAccountId(newOrigin);
+                    setReviewFields((fields) =>
+                      fields.filter((field) => field !== 'cuenta' && field !== 'tarjeta')
+                    );
                     // Reset cuotas when switching away from a card
                     if (!newOrigin?.startsWith('card:')) {
                       setCantidadCuotas(1);
@@ -487,7 +504,9 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
                     }
                   }}
                   className={`w-full rounded-lg border-2 bg-white px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors focus:outline-none ${
-                    isCardSelected
+                    reviewFields.includes('cuenta') || reviewFields.includes('tarjeta')
+                      ? 'border-amber-400 focus:border-amber-500'
+                      : isCardSelected
                       ? 'border-amber-300 focus:border-amber-500'
                       : 'border-gray-200 focus:border-blue-500'
                   }`}
@@ -586,8 +605,11 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
                   <select
                     id="qa-destino"
                     value={destinoAccountId ?? ''}
-                    onChange={(e) => setDestinoAccountId(e.target.value || undefined)}
-                    className="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors focus:border-blue-500 focus:outline-none"
+                    onChange={(e) => {
+                      setDestinoAccountId(e.target.value || undefined);
+                      setReviewFields((fields) => fields.filter((field) => field !== 'destino'));
+                    }}
+                    className={`w-full rounded-lg border-2 bg-white px-3 py-2.5 text-sm font-medium text-gray-800 transition-colors focus:outline-none ${reviewFields.includes('destino') ? 'border-amber-400 focus:border-amber-500' : 'border-gray-200 focus:border-blue-500'}`}
                   >
                     {destAccounts.map((a) => (
                       <option key={a.id} value={a.id}>
@@ -703,8 +725,11 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
                       <select
                         id="qa-fund"
                         value={fondoDescuentoId ?? ''}
-                        onChange={(e) => setFondoDescuentoId(e.target.value || undefined)}
-                        className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 focus:border-blue-500 focus:outline-none"
+                        onChange={(e) => {
+                          setFondoDescuentoId(e.target.value || undefined);
+                          setReviewFields((fields) => fields.filter((field) => field !== 'fondo'));
+                        }}
+                        className={`w-full rounded-lg border bg-white px-3 py-2 text-sm font-medium text-gray-800 focus:outline-none ${reviewFields.includes('fondo') ? 'border-amber-400 focus:border-amber-500' : 'border-blue-200 focus:border-blue-500'}`}
                       >
                         {discountFunds.map((a) => (
                           <option key={a.id} value={a.id}>
@@ -777,15 +802,35 @@ export default function QuickAdd({ onSubmit, initialIntent }: QuickAddProps) {
               </div>
             </div>}
 
+            {warnings.length > 0 && (
+              <div role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {warnings.map((warning) => <p key={warning}>{warning}</p>)}
+                {reviewFields.length > 0 && (
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className="font-medium">Revisá los selectores para habilitar Guardar.</p>
+                    <button
+                      type="button"
+                      onClick={() => setReviewFields([])}
+                      className="shrink-0 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-semibold"
+                    >
+                      Confirmar selección
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Submit */}
             <button
               onClick={handleSubmit}
               disabled={
                 !monto || parseFloat(monto) <= 0 || isSubmitting ||
+                reviewFields.length > 0 ||
                 (tipo === 'TRANSFERENCIA' && (!selectedAccountId || !destinoAccountId))
               }
               className={`w-full rounded-lg py-4 font-semibold text-white transition-all ${
                 !monto || parseFloat(monto) <= 0 || isSubmitting ||
+                reviewFields.length > 0 ||
                 (tipo === 'TRANSFERENCIA' && (!selectedAccountId || !destinoAccountId))
                   ? 'cursor-not-allowed bg-gray-300'
                   : tipo === 'INGRESO'

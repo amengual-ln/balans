@@ -15,6 +15,7 @@ Minimalist personal finance app with complete transaction traceability. Part of 
 - Contextual actions for transfers, balance adjustments, card payments, and subscription payments
 - Installable PWA shell (network-only; no offline cache)
 - Ultra-fast expense logging (<5 seconds)
+- Local smart text input that prefills movements and debts for confirmation
 - Minimalist Nordic-inspired design
 
 ### Planned
@@ -125,6 +126,12 @@ cd apps/api && pnpm prisma:studio   # GUI
 cd apps/api && pnpm prisma:migrate  # migrations
 cd apps/api && pnpm prisma:generate # regenerate client
 ```
+
+## Smart text input
+
+Dashboard accepts one Spanish operation at a time and interprets it entirely in browser. It never saves directly: existing movement or debt form opens prefilled for review and confirmation.
+
+Examples: `café 4500`, `cobré 100000 sueldo en Galicia`, `TV 900000 con Visa en 6 cuotas`, `transferí 20k de Galicia a Mercado Pago tasa 1050`, `café 4500 con descuento 70% fondo Freya`, `debo 100 a Pepito`, `Pepito me debe 100`.
 
 ## Project Structure
 

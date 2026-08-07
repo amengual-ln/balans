@@ -341,5 +341,62 @@ describe('QuickAdd', () => {
     })
   })
 
+  describe('smart input intent', () => {
+    it('opens prefilled and still requires explicit save', async () => {
+      const onSuccess = vi.fn()
+      render(
+        <QuickAdd
+          onSubmit={mockOnSubmit}
+          onSuccess={onSuccess}
+          initialIntent={{
+            open: true,
+            requestId: 'smart-1',
+            tipo: 'GASTO',
+            monto: 900000,
+            descripcion: 'TV',
+            categoria: 'compras',
+            tarjetaId: 'card1',
+            cuotas: 6,
+            fecha: '2026-08-06',
+          }}
+        />
+      )
+
+      expect(screen.getByRole('heading', { name: /compra en tarjeta/i })).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /monto/i })).toHaveValue('900.000')
+      expect(screen.getByPlaceholderText(/descripción/i)).toHaveValue('TV')
+      expect(screen.getByRole('combobox', { name: /cuenta/i })).toHaveValue('card:card1')
+      expect(mockOnSubmit).not.toHaveBeenCalled()
+
+      await userEvent.click(screen.getByRole('button', { name: /guardar/i }))
+      await waitFor(() => expect(mockOnSubmit).toHaveBeenCalledWith(expect.objectContaining({
+        tipo: 'TARJETA', monto: 900000, tarjeta_id: 'card1', cantidad_cuotas: 6,
+      })))
+      expect(onSuccess).toHaveBeenCalledOnce()
+    })
+
+    it('blocks save until an ambiguous selector is reviewed', async () => {
+      render(
+        <QuickAdd
+          onSubmit={mockOnSubmit}
+          initialIntent={{
+            open: true,
+            requestId: 'smart-2',
+            tipo: 'INGRESO',
+            monto: 100,
+            warnings: ['Revisá la cuenta “Galicia”.'],
+            reviewFields: ['cuenta'],
+          }}
+        />
+      )
+
+      const save = screen.getByRole('button', { name: /guardar/i })
+      expect(screen.getByRole('alert')).toHaveTextContent(/revisá la cuenta/i)
+      expect(save).toBeDisabled()
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: /cuenta/i }), 'acc2')
+      expect(save).toBeEnabled()
+    })
+  })
+
 
 })

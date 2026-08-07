@@ -86,3 +86,5 @@ apps/web/src/hooks/      # useAccounts, useCards, useMovements, useStats, useAPI
 - Movement page supports month navigation and filters by type, category, description, account, and card.
 - Account/card actions deep-link to `/movements` with `cuenta_id`, `tarjeta_id`, and optional `quick` intent.
 - Shared money/date formatting lives in `apps/web/src/lib/financeFormat.ts`.
+- Dashboard smart input is parsed locally by `apps/web/src/lib/smartInput.ts`; it only prefills QuickAdd or DebtForm and always requires confirmation.
+- Shared QuickAdd categories and conservative smart-input aliases live in `apps/web/src/lib/categories.ts`.

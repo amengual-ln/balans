@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
   CalendarClock,
@@ -9,14 +9,16 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
+  WandSparkles,
 } from 'lucide-react'
-import QuickAdd from '@/components/QuickAdd'
+import QuickAdd, { type QuickAddInitialIntent } from '@/components/QuickAdd'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useCards } from '@/hooks/useCards'
 import { useMovements } from '@/hooks/useMovements'
 import { useQuickAddMovement } from '@/hooks/useQuickAddMovement'
 import { useStats } from '@/hooks/useStats'
 import { useSubscriptions } from '@/hooks/useSubscriptions'
+import { parseSmartInput, SMART_INPUT_DRAFT_KEY } from '@/lib/smartInput'
 
 const SHORT_MONTHS = [
   'Ene',
@@ -82,8 +84,14 @@ function SectionHeader({ title, to }: { title: string; to?: string }) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate()
+  const requestCounter = useRef(0)
   const [includeCardPurchases, setIncludeCardPurchases] = useState(false)
   const [showAllCategories, setShowAllCategories] = useState(false)
+  const [smartText, setSmartText] = useState(() => sessionStorage.getItem(SMART_INPUT_DRAFT_KEY) ?? '')
+  const [smartError, setSmartError] = useState('')
+  const [interpreting, setInterpreting] = useState(false)
+  const [smartIntent, setSmartIntent] = useState<QuickAddInitialIntent>()
   const { desde, hasta } = monthRange()
   const { stats, isLoading: statsLoading } = useStats(desde, hasta)
   const { movements, isLoading: movementsLoading } = useMovements(desde, hasta)
@@ -91,6 +99,31 @@ export default function Dashboard() {
   const { cards, isLoading: cardsLoading } = useCards()
   const { subscriptions, isLoading: subscriptionsLoading } = useSubscriptions()
   const { submitQuickAdd } = useQuickAddMovement()
+
+  const handleSmartInput = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (accountsLoading || cardsLoading) return
+    setInterpreting(true)
+    setSmartError('')
+    await Promise.resolve()
+    const result = parseSmartInput(smartText, { accounts, cards, now: new Date() })
+    setInterpreting(false)
+    if (result.kind === 'failure') {
+      setSmartError(result.error)
+      return
+    }
+    if (result.kind === 'debt') {
+      sessionStorage.setItem(SMART_INPUT_DRAFT_KEY, smartText)
+      navigate('/debts', { state: { smartDebt: result.value } })
+      return
+    }
+    setSmartIntent({
+      ...result.value,
+      open: true,
+      requestId: String(++requestCounter.current),
+    })
+    sessionStorage.setItem(SMART_INPUT_DRAFT_KEY, smartText)
+  }
 
   const activeAccounts = accounts.filter((account) => account.activa)
   const totalsByCurrency = activeAccounts.reduce<Record<string, number>>((acc, account) => {
@@ -201,6 +234,32 @@ export default function Dashboard() {
           <p className="text-sm text-text-secondary">Hoy</p>
           <h1 className="text-2xl font-bold text-text-primary">Tu balance diario</h1>
         </div>
+
+        <form onSubmit={handleSmartInput} className="mb-5" aria-label="Registro rápido por texto">
+          <div className="flex overflow-hidden rounded-xl border border-border bg-white shadow-sm transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10">
+            <span className="flex items-center pl-3 text-primary" aria-hidden="true">
+              <WandSparkles className="h-4 w-4" />
+            </span>
+            <input
+              value={smartText}
+              onChange={(event) => setSmartText(event.target.value)}
+              disabled={accountsLoading || cardsLoading || interpreting}
+              placeholder="Ej: café 4500 con descuento 70% fondo Freya"
+              aria-label="Describí una operación"
+              aria-describedby={smartError ? 'smart-input-error' : undefined}
+              className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-text-primary outline-none placeholder:text-text-secondary/70 disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={accountsLoading || cardsLoading || interpreting || !smartText.trim()}
+              className="m-1.5 rounded-lg bg-text-primary px-3 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {interpreting ? 'Interpretando…' : 'Interpretar'}
+            </button>
+          </div>
+          {smartError && <p id="smart-input-error" role="alert" className="mt-1.5 px-1 text-xs text-negative">{smartError}</p>}
+          <p className="mt-1.5 px-1 text-[11px] text-text-secondary">Se interpreta en este dispositivo. Revisás antes de guardar.</p>
+        </form>
 
         <div className="mb-4 rounded-xl border border-border bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
@@ -459,7 +518,16 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <QuickAdd onSubmit={submitQuickAdd} />
+      <QuickAdd
+        onSubmit={submitQuickAdd}
+        initialIntent={smartIntent}
+        onSuccess={() => {
+          if (!smartIntent) return
+          setSmartText('')
+          setSmartIntent(undefined)
+          sessionStorage.removeItem(SMART_INPUT_DRAFT_KEY)
+        }}
+      />
     </div>
   )
 }

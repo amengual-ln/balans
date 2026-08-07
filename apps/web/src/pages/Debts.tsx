@@ -9,6 +9,8 @@ import { useSWRConfig } from 'swr';
 import DebtCard from '@/components/DebtCard';
 import { apiDelete, apiPost, apiPut } from '@/hooks/useAPI';
 import { parseAmount } from '@/lib/financeFormat';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { SMART_INPUT_DRAFT_KEY, type SmartDebtIntent } from '@/lib/smartInput';
 
 // ============================================
 // Toast Component
@@ -115,27 +117,28 @@ type DebtFormInput = z.infer<typeof debtFormSchema>;
 
 interface DebtFormProps {
   debt?: Debt;
+  initial?: SmartDebtIntent;
   onClose: () => void;
   onSubmit: (data: DebtFormInput) => void;
   submitting: boolean;
 }
 
-function DebtForm({ debt, onClose, onSubmit, submitting }: DebtFormProps) {
-  const [direccion, setDireccion] = useState<DireccionDeuda>(debt?.direccion ?? 'POR_PAGAR');
-  const [showAdvanced, setShowAdvanced] = useState(Boolean(debt));
+function DebtForm({ debt, initial, onClose, onSubmit, submitting }: DebtFormProps) {
+  const [direccion, setDireccion] = useState<DireccionDeuda>(debt?.direccion ?? initial?.direccion ?? 'POR_PAGAR');
+  const [showAdvanced, setShowAdvanced] = useState(Boolean(debt || initial));
   const isEditing = Boolean(debt);
 
   const form = useForm<DebtFormInput>({
     resolver: zodResolver(debtFormSchema),
     defaultValues: {
-      tipo: debt?.tipo ?? 'PERSONAL',
-      direccion: debt?.direccion ?? 'POR_PAGAR',
-      acreedor: debt?.acreedor ?? '',
-      monto_total: debt ? parseAmount(debt.monto_total) : undefined,
-      moneda: debt?.moneda ?? 'ARS',
+      tipo: debt?.tipo ?? initial?.tipo ?? 'PERSONAL',
+      direccion: debt?.direccion ?? initial?.direccion ?? 'POR_PAGAR',
+      acreedor: debt?.acreedor ?? initial?.acreedor ?? '',
+      monto_total: debt ? parseAmount(debt.monto_total) : initial?.monto,
+      moneda: debt?.moneda ?? initial?.moneda ?? 'ARS',
       fecha_inicio: debt?.fecha_inicio
         ? new Date(debt.fecha_inicio).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0],
+        : initial?.fecha ?? new Date().toISOString().split('T')[0],
       cantidad_cuotas: debt?.cantidad_cuotas ?? undefined,
       monto_cuota: debt?.monto_cuota ? parseAmount(debt.monto_cuota) : undefined,
     },
@@ -534,11 +537,16 @@ function DebtPaymentModal({
 type DebtViewFilter = 'TODAS' | 'POR_PAGAR' | 'POR_COBRAR';
 
 export default function Debts() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [smartDebt, setSmartDebt] = useState<SmartDebtIntent | undefined>(
+    () => (location.state as { smartDebt?: SmartDebtIntent } | null)?.smartDebt
+  );
   const { debts, isLoading, mutate } = useDebts();
   const { accounts } = useAccounts();
   const { mutate: globalMutate } = useSWRConfig();
 
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(Boolean(smartDebt));
   const [editDebt, setEditDebt] = useState<Debt | null>(null);
   const [deleteDebt, setDeleteDebt] = useState<Debt | null>(null);
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
@@ -549,6 +557,10 @@ export default function Debts() {
     message: string;
     type: 'success' | 'error';
   } | null>(null);
+
+  useEffect(() => {
+    if (smartDebt) navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, navigate, smartDebt]);
 
   const { payable, receivable, settled } = useMemo(() => {
     const sortByOpenAmount = (a: Debt, b: Debt) =>
@@ -576,6 +588,10 @@ export default function Debts() {
       });
       mutate();
       setShowForm(false);
+      if (smartDebt) {
+        sessionStorage.removeItem(SMART_INPUT_DRAFT_KEY);
+        setSmartDebt(undefined);
+      }
       setToast({ message: 'Deuda creada exitosamente', type: 'success' });
     } catch (err) {
       setToast({
@@ -768,7 +784,11 @@ export default function Debts() {
       {/* Modals */}
       {showForm && (
         <DebtForm
-          onClose={() => setShowForm(false)}
+          initial={smartDebt}
+          onClose={() => {
+            setShowForm(false);
+            setSmartDebt(undefined);
+          }}
           onSubmit={handleCreateDebt}
           submitting={submitting}
         />

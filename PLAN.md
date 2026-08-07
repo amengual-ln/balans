@@ -1,6 +1,6 @@
 # PLAN.md
 
-> Status dashboard. 2026-08-05
+> Status dashboard. 2026-08-07
 
 ---
 
@@ -43,6 +43,7 @@
 | Investments page          | ✅ Done    |                                                            |
 | **Budgets page**          | ❌ Missing |                                                            |
 | QuickAdd FAB              | ✅ Done    | Income/expense/transfer + card purchases + discount fund   |
+| Smart text input          | ✅ Done    | Local parser; prefills QuickAdd/debts, confirmation required |
 | BottomNav                 | ✅ Done    | Inicio, Movimientos, Suscripciones + overflow              |
 | Monthly movement UX       | ✅ Done    | Month navigation, filters, account/card context            |
 | Operational screen UX     | ✅ Done    | Summary banners, due states, contextual actions            |

@@ -29,13 +29,19 @@ const mocks = vi.hoisted(() => ({
   subscriptionsLoading: false,
   stats: { ingresos: 2500, gastos: 1000, balance: 1500 },
   statsLoading: false,
+  accounts: [
+    { id: 'a1', nombre: 'Banco Galicia', tipo: 'BANCO', moneda: 'ARS', saldo_actual: 1000, activa: true },
+  ],
+  accountsLoading: false,
+  quickAddProps: null as null | { initialIntent?: Record<string, unknown>; onSuccess?: () => void },
+  submitQuickAdd: vi.fn(),
 }))
 
 vi.mock('@/hooks/useMovements', () => ({
   useMovements: () => ({ movements: mocks.movements, isLoading: mocks.movementsLoading }),
 }))
 vi.mock('@/hooks/useAccounts', () => ({
-  useAccounts: () => ({ accounts: [], isLoading: false }),
+  useAccounts: () => ({ accounts: mocks.accounts, isLoading: mocks.accountsLoading }),
 }))
 vi.mock('@/hooks/useCards', () => ({
   useCards: () => ({ cards: mocks.cards, isLoading: mocks.cardsLoading }),
@@ -50,9 +56,19 @@ vi.mock('@/hooks/useStats', () => ({
   useStats: () => ({ stats: mocks.stats, isLoading: mocks.statsLoading }),
 }))
 vi.mock('@/hooks/useQuickAddMovement', () => ({
-  useQuickAddMovement: () => ({ submitQuickAdd: vi.fn() }),
+  useQuickAddMovement: () => ({ submitQuickAdd: mocks.submitQuickAdd }),
 }))
-vi.mock('@/components/QuickAdd', () => ({ default: () => null }))
+vi.mock('@/components/QuickAdd', () => ({
+  default: (props: { initialIntent?: Record<string, unknown>; onSuccess?: () => void }) => {
+    mocks.quickAddProps = props
+    return props.initialIntent?.open ? (
+      <div data-testid="quick-add-intent">
+        {JSON.stringify(props.initialIntent)}
+        <button onClick={props.onSuccess}>Simular guardado</button>
+      </div>
+    ) : null
+  },
+}))
 
 const renderPage = () =>
   render(<Dashboard />, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter> })
@@ -67,6 +83,7 @@ const nextPayment = (fecha: string): ProximoPago => ({
 })
 
 beforeEach(() => {
+  sessionStorage.clear()
   mocks.movements = [...categoryMovements]
   mocks.movementsLoading = false
   mocks.cards = []
@@ -75,6 +92,40 @@ beforeEach(() => {
   mocks.subscriptionsLoading = false
   mocks.stats = { ingresos: 2500, gastos: 1000, balance: 1500 }
   mocks.statsLoading = false
+  mocks.accountsLoading = false
+  mocks.quickAddProps = null
+  mocks.submitQuickAdd.mockClear()
+})
+
+describe('Dashboard smart input', () => {
+  it('interprets with Enter, prefills without saving, preserves text until success', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const input = screen.getByRole('textbox', { name: /describí una operación/i })
+
+    await user.type(input, 'café 4500{Enter}')
+
+    const intent = await screen.findByTestId('quick-add-intent')
+    expect(intent).toHaveTextContent('"monto":4500')
+    expect(intent).toHaveTextContent('"categoria":"comida"')
+    expect(mocks.submitQuickAdd).not.toHaveBeenCalled()
+    expect(input).toHaveValue('café 4500')
+
+    await user.click(screen.getByRole('button', { name: 'Simular guardado' }))
+    expect(input).toHaveValue('')
+  })
+
+  it('shows incomplete input error and disables while entities load', async () => {
+    const user = userEvent.setup()
+    const view = renderPage()
+    await user.type(screen.getByRole('textbox', { name: /describí una operación/i }), 'café{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent(/monto/i)
+
+    view.unmount()
+    mocks.accountsLoading = true
+    renderPage()
+    expect(screen.getByRole('textbox', { name: /describí una operación/i })).toBeDisabled()
+  })
 })
 
 describe('Dashboard monthly summary', () => {
