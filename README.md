@@ -5,7 +5,7 @@ Minimalist personal finance app with complete transaction traceability. Part of 
 ## Features
 
 - Complete traceability of all money movements
-- Daily dashboard with balances, monthly cash flow, top expense categories, and upcoming payments
+- Daily dashboard with balances, compact monthly summary, automatic monthly checklist, ARS expense breakdown, and upcoming payments
 - Multi-account and multi-currency support
 - Credit cards with installment tracking
 - Debt and investment management

@@ -45,6 +45,7 @@ export interface Movement {
   categoria?: string | null
   fecha: string
   tarjeta_id?: string | null
+  suscripcion_id?: string | null
   cuenta_origen?: CuentaRef | null
   cuenta_destino?: CuentaRef | null
   tarjeta?: TarjetaRef | null

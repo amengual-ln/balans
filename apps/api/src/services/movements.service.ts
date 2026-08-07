@@ -15,7 +15,7 @@ import type {
 
 const MOVEMENT_SELECT = `
   id, tipo, monto, moneda, descripcion, categoria, fecha,
-  cuenta_id, cuenta_destino_id, tarjeta_id, movimiento_relacionado_id, metadata,
+  cuenta_id, cuenta_destino_id, tarjeta_id, suscripcion_id, movimiento_relacionado_id, metadata,
   cuenta_origen:cuentas!cuenta_id(id, nombre, tipo, moneda),
   cuenta_destino:cuentas!cuenta_destino_id(id, nombre, tipo, moneda),
   tarjeta:tarjetas!tarjeta_id(id, nombre, tipo),

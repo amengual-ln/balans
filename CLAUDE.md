@@ -82,7 +82,7 @@ apps/web/src/hooks/      # useAccounts, useCards, useMovements, useStats, useAPI
 
 ## Daily UX
 
-- `/` is the dashboard: available balance, current-month flow, expense categories, upcoming payments.
+- `/` is the dashboard: available balance, compact monthly summary, automatic monthly checklist, ARS expense categories, upcoming payments.
 - Movement page supports month navigation and filters by type, category, description, account, and card.
 - Account/card actions deep-link to `/movements` with `cuenta_id`, `tarjeta_id`, and optional `quick` intent.
 - Shared money/date formatting lives in `apps/web/src/lib/financeFormat.ts`.
